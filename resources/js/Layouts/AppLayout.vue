@@ -17,13 +17,11 @@ import {
 const { props } = usePage();
 const usuario = computed(() => props.auth.usuario);
 
-// Estado para controlar el dropdown del usuario
 const dropdownAbierto = ref(false);
 const toggleDropdown = () => {
   dropdownAbierto.value = !dropdownAbierto.value;
 };
 
-// Cerrar el menú si se hace clic afuera
 const cerrarDropdown = (e) => {
   if (!e.target.closest('.user-dropdown-wrapper')) {
     dropdownAbierto.value = false;
@@ -33,7 +31,6 @@ const cerrarDropdown = (e) => {
 onMounted(() => window.addEventListener('click', cerrarDropdown));
 onUnmounted(() => window.removeEventListener('click', cerrarDropdown));
 
-// Menú dinámico según rol
 const menuItems = computed(() => {
     const rol = usuario.value?.rol;
     const items = [

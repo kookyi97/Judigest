@@ -37,8 +37,7 @@ class LoginController extends Controller
             ]);
         }
 
-        // CORRECCIÓN: Auth::attempt siempre usa 'password' como clave
-        // getAuthPassword() en el modelo lo mapea a 'contrasena'
+       
         if (Auth::attempt([
             'correo'   => $request->correo,
             'password' => $request->contrasena,
@@ -58,7 +57,7 @@ class LoginController extends Controller
             ]);
 
             $request->session()->regenerate();
-            return redirect()->route('dashboard');
+            return redirect()->intended(route('dashboard'));
         }
 
         // JD045: incrementar intentos fallidos
