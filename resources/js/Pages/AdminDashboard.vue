@@ -1,243 +1,155 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { computed } from 'vue';
-import {
-  FileText, Users, Calendar, Activity,
-  LayoutDashboard, AlertTriangle, CheckCircle,
-  Clock, Download, Filter
-} from 'lucide-vue-next';
+import { FileText, Users, Calendar, Activity, LayoutDashboard, AlertTriangle, CheckCircle, Clock, Download, Filter } from 'lucide-vue-next';
 
 const props = defineProps({
-  estadisticas: {
-    type: Object,
-    default: () => ({
-      expedientesActivos: 0,
-      usuariosActivos: 0,
-      audienciasEsteMes: 0,
-      accionesHoy: 0
-    })
-  },
+  estadisticas: { type: Object, default: () => ({ expedientesActivos:0, usuariosActivos:0, audienciasEsteMes:0, accionesHoy:0 }) },
   ultimasActividades: { type: Array, default: () => [] },
   usuariosPorRol:     { type: Array, default: () => [] },
   alertas:            { type: Array, default: () => [] }
 });
 
-// Datos de ejemplo para mostrar la interfaz completa
 const stats = computed(() => [
-  {
-    label: 'Expedientes activos',
-    valor: props.estadisticas.expedientesActivos ?? 0,
-    subtexto: 'en el sistema actualmente',
-    colorFondo: '#EFF6FF',
-    colorIcono: '#185FA5',
-    icono: FileText
-  },
-  {
-    label: 'Usuarios activos',
-    valor: props.estadisticas.usuariosActivos ?? 0,
-    subtexto: 'cuentas habilitadas',
-    colorFondo: '#F0FDF4',
-    colorIcono: '#16A34A',
-    icono: Users
-  },
-  {
-    label: 'Audiencias este mes',
-    valor: props.estadisticas.audienciasEsteMes ?? 0,
-    subtexto: 'registradas en el calendario',
-    colorFondo: '#FFF7ED',
-    colorIcono: '#D97706',
-    icono: Calendar
-  },
-  {
-    label: 'Acciones registradas hoy',
-    valor: props.estadisticas.accionesHoy ?? 0,
-    subtexto: 'en el log de trazabilidad',
-    colorFondo: '#FDF4FF',
-    colorIcono: '#9333EA',
-    icono: Activity
-  }
+  { label:'Expedientes activos',    valor:props.estadisticas.expedientesActivos??0, sub:'en el sistema',           bg:'#EFF6FF', color:'#185FA5', icono:FileText },
+  { label:'Usuarios activos',       valor:props.estadisticas.usuariosActivos??0,    sub:'cuentas habilitadas',     bg:'#F0FDF4', color:'#16A34A', icono:Users },
+  { label:'Audiencias este mes',    valor:props.estadisticas.audienciasEsteMes??0,  sub:'en el calendario',        bg:'#FFF7ED', color:'#D97706', icono:Calendar },
+  { label:'Acciones registradas hoy',valor:props.estadisticas.accionesHoy??0,      sub:'en el log',               bg:'#FDF4FF', color:'#9333EA', icono:Activity },
 ]);
 
-const coloresRol = {
-  administrador: '#185FA5',
-  secretario:    '#16A34A',
-  asesor:        '#D97706',
-  practicante:   '#9333EA'
-};
+const coloresRol = { administrador:'#185FA5', secretario:'#16A34A', asesor:'#D97706', practicante:'#9333EA' };
 </script>
 
 <template>
   <AppLayout>
-    <div class="dashboard">
+    <div class="db">
 
-      <!-- Cabecera de pagina -->
-      <div class="page-header">
+      <!-- Cabecera -->
+      <div class="db__header">
         <div>
-          <h1 class="page-title">Dashboard General</h1>
-          <p class="page-sub">Estado del sistema en tiempo real</p>
+          <h1 class="db__titulo">Dashboard General</h1>
+          <p class="db__sub">Estado del sistema en tiempo real</p>
         </div>
-        <div class="header-accesos">
-          <a href="/usuarios" class="btn-header">Gestión de Usuarios</a>
-          <a href="/auditoria" class="btn-header">Log de Actividad</a>
-          <a href="/configuracion" class="btn-header btn-header--outline">Configuración</a>
-        </div>
-      </div>
-
-      <!-- Alertas del sistema -->
-      <div v-if="alertas && alertas.length > 0" class="alertas-bloque">
-        <div v-for="(alerta, i) in alertas" :key="i" class="alerta-item" :class="`alerta-item--${alerta.tipo ?? 'info'}`">
-          <AlertTriangle class="alerta-icono" />
-          <span>{{ alerta.mensaje }}</span>
+        <div class="db__accesos">
+          <a href="/usuarios"      class="btn">Gestión de Usuarios</a>
+          <a href="/auditoria"     class="btn">Log de Actividad</a>
+          <a href="/configuracion" class="btn btn--outline">Configuración</a>
         </div>
       </div>
 
-      <!-- Tarjetas de estadisticas -->
-      <div class="stats-grid">
-        <div v-for="stat in stats" :key="stat.label" class="stat-card">
-          <div class="stat-card__icono" :style="{ background: stat.colorFondo }">
-            <component :is="stat.icono" class="stat-icon" :style="{ color: stat.colorIcono }" />
+      <!-- Alertas -->
+      <div v-if="alertas && alertas.length" class="alertas">
+        <div v-for="(a,i) in alertas" :key="i" class="alerta" :class="`alerta--${a.tipo??'info'}`">
+          <AlertTriangle class="alerta__ico" /><span>{{ a.mensaje }}</span>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div v-for="s in stats" :key="s.label" class="stat">
+          <div class="stat__ico" :style="{background:s.bg}">
+            <component :is="s.icono" class="stat__svg" :style="{color:s.color}" />
           </div>
-          <div class="stat-card__body">
-            <p class="stat-card__label">{{ stat.label }}</p>
-            <p class="stat-card__valor">{{ stat.valor }}</p>
-            <p class="stat-card__sub">{{ stat.subtexto }}</p>
+          <div>
+            <p class="stat__label">{{ s.label }}</p>
+            <p class="stat__valor">{{ s.valor }}</p>
+            <p class="stat__sub">{{ s.sub }}</p>
           </div>
         </div>
       </div>
 
-      <!-- Bloque inferior -->
-      <div class="bloque-inferior">
+      <!-- Inferior -->
+      <div class="inferior">
 
-        <!-- Ultimas actividades del sistema -->
-        <div class="panel panel--grande">
-          <div class="panel__header">
-            <h2 class="panel__titulo">Ultimas actividades del sistema</h2>
+        <!-- Actividad reciente -->
+        <div class="panel">
+          <div class="panel__head">
+            <h2 class="panel__titulo">Ultimas actividades</h2>
             <a href="/auditoria" class="panel__link">Ver log completo</a>
           </div>
 
-          <div v-if="!ultimasActividades || ultimasActividades.length === 0" class="panel__vacio">
-            <Clock class="vacio-icon" />
-            <p>Sin actividad registrada todavia.</p>
+          <!-- Columnas de log (solo desktop) -->
+          <div class="log-cols">
+            <span>Fecha / Hora</span><span>Usuario</span><span>Accion</span>
+            <span>Expediente</span><span>IP</span><span>Resultado</span>
           </div>
 
-          <div v-else class="actividad-lista">
-            <div v-for="(act, i) in ultimasActividades" :key="i" class="actividad-fila">
-              <div class="actividad-dot" :class="act.resultado === 'fallido' ? 'actividad-dot--error' : 'actividad-dot--ok'">
-                <CheckCircle v-if="act.resultado !== 'fallido'" class="dot-icon" />
-                <AlertTriangle v-else class="dot-icon" />
+          <div v-if="ultimasActividades && ultimasActividades.length">
+            <div v-for="(a,i) in ultimasActividades" :key="i" class="act-fila">
+              <div class="act-dot" :class="a.resultado==='fallido'?'act-dot--err':'act-dot--ok'">
+                <CheckCircle v-if="a.resultado!=='fallido'" class="act-dot__svg"/>
+                <AlertTriangle v-else class="act-dot__svg"/>
               </div>
-              <div class="actividad-body">
-                <p class="actividad-texto">
-                  <strong>{{ act.usuario }}</strong>
-                  <span class="actividad-accion"> — {{ act.accion }}</span>
-                  <span v-if="act.expediente" class="actividad-tag">{{ act.expediente }}</span>
+              <div class="act-body">
+                <p class="act-txt"><strong>{{ a.usuario }}</strong> — {{ a.accion }}
+                  <span v-if="a.expediente" class="act-tag">{{ a.expediente }}</span>
                 </p>
-                <p class="actividad-meta">{{ act.hora }} · IP: {{ act.ip }}</p>
+                <p class="act-meta">{{ a.hora }} · {{ a.ip }}</p>
               </div>
-              <span v-if="act.resultado === 'fallido'" class="badge badge--urgente">Fallido</span>
             </div>
           </div>
 
-          <!-- Tabla placeholder cuando no hay datos reales -->
-          <div v-if="!ultimasActividades || ultimasActividades.length === 0" class="tabla-placeholder">
-            <div class="tabla-header-row">
-              <span>Fecha / Hora</span>
-              <span>Usuario</span>
-              <span>Accion</span>
-              <span>Expediente</span>
-              <span>IP</span>
-              <span>Resultado</span>
-            </div>
-            <div v-for="n in 5" :key="n" class="tabla-placeholder-row">
-              <span class="ph-bar ph-bar--fecha"></span>
-              <span class="ph-bar ph-bar--usuario"></span>
-              <span class="ph-bar ph-bar--accion"></span>
-              <span class="ph-bar ph-bar--exp"></span>
-              <span class="ph-bar ph-bar--ip"></span>
-              <span class="ph-bar ph-bar--res"></span>
+          <!-- Placeholder filas -->
+          <div v-else>
+            <div v-for="n in 5" :key="n" class="act-fila">
+              <div class="act-dot act-dot--ok"><Clock class="act-dot__svg"/></div>
+              <div class="act-body">
+                <div class="ph ph--lg"></div>
+                <div class="ph ph--sm mt4"></div>
+              </div>
             </div>
           </div>
 
-          <!-- Acciones del log -->
-          <div class="log-acciones">
-            <button class="btn-secundario">
-              <Filter class="btn-icon" /> Filtrar por usuario
-            </button>
-            <button class="btn-secundario">
-              <Filter class="btn-icon" /> Filtrar por fecha
-            </button>
-            <button class="btn-secundario">
-              <Filter class="btn-icon" /> Filtrar por tipo
-            </button>
-            <button class="btn-primario">
-              <Download class="btn-icon" /> Exportar a Excel
-            </button>
+          <!-- Botones log -->
+          <div class="log-btns">
+            <button class="btn-sec"><Filter class="btn-sec__ico"/>Filtrar usuario</button>
+            <button class="btn-sec"><Filter class="btn-sec__ico"/>Filtrar fecha</button>
+            <button class="btn-sec"><Filter class="btn-sec__ico"/>Filtrar tipo</button>
+            <button class="btn btn--sm ml-auto"><Download class="btn-sec__ico"/>Exportar Excel</button>
           </div>
         </div>
 
-        <!-- Panel derecho: usuarios por rol -->
+        <!-- Panel usuarios por rol -->
         <div class="panel panel--chico">
-
-          <!-- Distribucion por rol -->
-          <div class="panel__header">
+          <div class="panel__head">
             <h2 class="panel__titulo">Usuarios por rol</h2>
             <a href="/usuarios" class="panel__link">Ver todos</a>
           </div>
 
-          <div class="roles-lista">
-            <div v-for="rol in usuariosPorRol" :key="rol.nombre" class="rol-fila">
-              <div class="rol-dot" :style="{ background: coloresRol[rol.nombre.toLowerCase()] ?? '#94A3B8' }"></div>
-              <span class="rol-nombre">{{ rol.nombre }}</span>
-              <span class="rol-total">{{ rol.total }}</span>
-            </div>
-
-            <!-- placeholder si no hay datos -->
-            <template v-if="!usuariosPorRol || usuariosPorRol.length === 0">
-              <div v-for="(r, i) in ['Administrador','Secretario','Asesor','Practicante']" :key="i" class="rol-fila">
-                <div class="rol-dot" :style="{ background: Object.values(coloresRol)[i] }"></div>
-                <span class="rol-nombre">{{ r }}</span>
+          <div class="roles">
+            <template v-if="usuariosPorRol && usuariosPorRol.length">
+              <div v-for="r in usuariosPorRol" :key="r.nombre" class="rol-fila">
+                <div class="rol-dot" :style="{background:coloresRol[r.nombre.toLowerCase()]??'#94A3B8'}"></div>
+                <span class="rol-nombre">{{ r.nombre }}</span>
+                <span class="rol-total">{{ r.total }}</span>
+              </div>
+            </template>
+            <template v-else>
+              <div v-for="(label,i) in ['Administrador','Secretario','Asesor','Practicante']" :key="i" class="rol-fila">
+                <div class="rol-dot" :style="{background:Object.values(coloresRol)[i]}"></div>
+                <span class="rol-nombre">{{ label }}</span>
                 <span class="rol-total">—</span>
               </div>
             </template>
           </div>
 
           <div class="barra-roles">
-            <template v-if="usuariosPorRol && usuariosPorRol.length > 0">
-              <div
-                v-for="rol in usuariosPorRol"
-                :key="rol.nombre"
-                class="barra-segmento"
-                :style="{ width: `${rol.porcentaje}%`, background: coloresRol[rol.nombre.toLowerCase()] ?? '#94A3B8' }"
-                :title="`${rol.nombre}: ${rol.total}`"
-              ></div>
+            <template v-if="usuariosPorRol && usuariosPorRol.length">
+              <div v-for="r in usuariosPorRol" :key="r.nombre" class="barra-seg"
+                :style="{width:`${r.porcentaje}%`,background:coloresRol[r.nombre.toLowerCase()]??'#94A3B8'}"></div>
             </template>
             <template v-else>
-              <div v-for="(c,i) in Object.values(coloresRol)" :key="i" class="barra-segmento" :style="{ width: '25%', background: c }"></div>
+              <div v-for="(c,i) in Object.values(coloresRol)" :key="i" class="barra-seg" :style="{width:'25%',background:c}"></div>
             </template>
           </div>
 
-          <!-- Separador -->
-          <hr class="panel__divider" />
-
-          <!-- Accesos directos a modulos -->
+          <hr class="divider"/>
           <h3 class="panel__subtitulo">Accesos directos</h3>
           <div class="accesos-grid">
-            <a href="/usuarios" class="acceso-item">
-              <Users class="acceso-icon" />
-              <span>Usuarios</span>
-            </a>
-            <a href="/auditoria" class="acceso-item">
-              <Activity class="acceso-icon" />
-              <span>Auditoria</span>
-            </a>
-            <a href="/expedientes" class="acceso-item">
-              <FileText class="acceso-icon" />
-              <span>Expedientes</span>
-            </a>
-            <a href="/configuracion" class="acceso-item">
-              <LayoutDashboard class="acceso-icon" />
-              <span>Config.</span>
-            </a>
+            <a href="/usuarios"      class="acceso"><Users class="acceso__ico"/><span>Usuarios</span></a>
+            <a href="/auditoria"     class="acceso"><Activity class="acceso__ico"/><span>Auditoria</span></a>
+            <a href="/expedientes"   class="acceso"><FileText class="acceso__ico"/><span>Expedientes</span></a>
+            <a href="/configuracion" class="acceso"><LayoutDashboard class="acceso__ico"/><span>Config.</span></a>
           </div>
         </div>
 
@@ -247,350 +159,108 @@ const coloresRol = {
 </template>
 
 <style scoped>
-/* ── Variables ── */
-.dashboard {
-  --azul:    #185FA5;
-  --texto:   #1E293B;
-  --fondo:   #F8FAFC;
-  --borde:   #E2E8F0;
-  --blanco:  #FFFFFF;
-  font-family: 'Poppins', 'Inter', sans-serif;
-  color: var(--texto);
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
+/* ── Reset y base ── */
+.db { font-family:'Poppins','Inter',sans-serif; color:#1E293B; display:flex; flex-direction:column; gap:22px; width:100%; box-sizing:border-box; }
 
 /* ── Cabecera ── */
-.page-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 600;
-  color: var(--texto);
-  margin: 0 0 4px;
-}
-.page-sub {
-  font-size: 13px;
-  color: #64748B;
-  margin: 0;
-}
-.header-accesos {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.btn-header {
-  padding: 8px 14px;
-  background: var(--azul);
-  color: #fff;
-  border-radius: 8px;
-  font-size: 12px;
-  font-weight: 500;
-  text-decoration: none;
-  transition: background .15s;
-  white-space: nowrap;
-}
-.btn-header:hover { background: #144d87; }
-.btn-header--outline {
-  background: transparent;
-  color: var(--azul);
-  border: 1px solid var(--azul);
-}
-.btn-header--outline:hover { background: #EFF6FF; }
+.db__header { display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; }
+.db__titulo { font-size:22px; font-weight:600; color:#1E293B; margin:0 0 4px; }
+.db__sub    { font-size:13px; color:#64748B; margin:0; }
+.db__accesos{ display:flex; gap:8px; flex-wrap:wrap; }
+
+/* ── Botones ── */
+.btn { padding:8px 14px; background:#185FA5; color:#fff; border-radius:8px; font-size:12px; font-weight:500; text-decoration:none; white-space:nowrap; transition:background .15s; border:none; cursor:pointer; font-family:'Poppins',sans-serif; }
+.btn:hover { background:#144d87; }
+.btn--outline { background:transparent; color:#185FA5; border:1px solid #185FA5; }
+.btn--outline:hover { background:#EFF6FF; }
+.btn--sm { padding:6px 12px; font-size:12px; }
+.ml-auto { margin-left:auto; }
 
 /* ── Alertas ── */
-.alertas-bloque { display: flex; flex-direction: column; gap: 6px; }
-.alerta-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  font-size: 13px;
-  border-left: 3px solid currentColor;
-}
-.alerta-item--info    { background: #DBEAFE; color: #1E40AF; }
-.alerta-item--advertencia { background: #FEF3C7; color: #92400E; }
-.alerta-item--error   { background: #FEE2E2; color: #991B1B; }
-.alerta-icono { width: 16px; height: 16px; flex-shrink: 0; }
+.alertas { display:flex; flex-direction:column; gap:6px; }
+.alerta { display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:8px; font-size:13px; border-left:3px solid currentColor; }
+.alerta--info    { background:#DBEAFE; color:#1E40AF; }
+.alerta--advertencia { background:#FEF3C7; color:#92400E; }
+.alerta--error   { background:#FEE2E2; color:#991B1B; }
+.alerta__ico { width:16px; height:16px; flex-shrink:0; }
 
-/* ── Stats grid ── */
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-.stat-card {
-  background: var(--blanco);
-  border: 1px solid var(--borde);
-  border-radius: 12px;
-  padding: 20px;
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.05);
-}
-.stat-card__icono {
-  width: 46px;
-  height: 46px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.stat-icon { width: 22px; height: 22px; }
-.stat-card__body { flex: 1; min-width: 0; }
-.stat-card__label {
-  font-size: 12px;
-  color: #64748B;
-  margin: 0 0 4px;
-}
-.stat-card__valor {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--texto);
-  margin: 0 0 2px;
-  line-height: 1.1;
-}
-.stat-card__sub {
-  font-size: 11px;
-  color: #94A3B8;
-  margin: 0;
-}
+/* ── Stats ── */
+.stats { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+.stat { background:#fff; border:1px solid #E2E8F0; border-radius:12px; padding:18px; display:flex; align-items:flex-start; gap:14px; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.stat__ico { width:44px; height:44px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.stat__svg { width:22px; height:22px; }
+.stat__label { font-size:12px; color:#64748B; margin:0 0 3px; }
+.stat__valor { font-size:26px; font-weight:700; color:#1E293B; margin:0 0 2px; line-height:1.1; }
+.stat__sub   { font-size:11px; color:#94A3B8; margin:0; }
 
-/* ── Bloque inferior ── */
-.bloque-inferior {
-  display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 16px;
-  align-items: start;
-}
+/* ── Inferior ── */
+.inferior { display:grid; grid-template-columns:1fr 280px; gap:16px; align-items:start; }
 
-/* ── Panel generico ── */
-.panel {
-  background: var(--blanco);
-  border: 1px solid var(--borde);
-  border-radius: 12px;
-  padding: 22px;
-  box-shadow: 0 1px 3px rgba(0,0,0,.05);
-}
-.panel__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 18px;
-}
-.panel__titulo {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--texto);
-  margin: 0;
-}
-.panel__subtitulo {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--texto);
-  margin: 0 0 12px;
-}
-.panel__link {
-  font-size: 12px;
-  color: var(--azul);
-  text-decoration: none;
-  font-weight: 500;
-}
-.panel__link:hover { text-decoration: underline; }
-.panel__vacio {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 20px 0 8px;
-  color: #94A3B8;
-  font-size: 13px;
-}
-.vacio-icon { width: 28px; height: 28px; }
-.panel__divider {
-  border: 0;
-  border-top: 1px solid var(--borde);
-  margin: 18px 0;
-}
+/* ── Panel ── */
+.panel { background:#fff; border:1px solid #E2E8F0; border-radius:12px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,.05); min-width:0; }
+.panel--chico {}
+.panel__head { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
+.panel__titulo { font-size:14px; font-weight:600; color:#1E293B; margin:0; }
+.panel__subtitulo { font-size:13px; font-weight:600; color:#1E293B; margin:0 0 10px; }
+.panel__link { font-size:12px; color:#185FA5; text-decoration:none; font-weight:500; }
+.panel__link:hover { text-decoration:underline; }
+.divider { border:0; border-top:1px solid #E2E8F0; margin:16px 0; }
+
+/* ── Columnas log (solo desktop, ocultas en móvil) ── */
+.log-cols { display:grid; grid-template-columns:120px 130px 1fr 110px 100px 80px; gap:8px; padding:7px 10px; background:#F8FAFC; border-radius:6px; font-size:10px; font-weight:600; color:#94A3B8; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
 
 /* ── Actividad ── */
-.actividad-lista { display: flex; flex-direction: column; }
-.actividad-fila {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid #F1F5F9;
-}
-.actividad-fila:last-child { border-bottom: none; }
-.actividad-dot {
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.actividad-dot--ok    { background: #D1FAE5; color: #065F46; }
-.actividad-dot--error { background: #FEE2E2; color: #991B1B; }
-.dot-icon { width: 13px; height: 13px; }
-.actividad-body { flex: 1; }
-.actividad-texto { font-size: 12px; color: #334155; margin: 0 0 2px; }
-.actividad-accion { color: #64748B; }
-.actividad-tag {
-  margin-left: 6px;
-  font-size: 11px;
-  background: #EFF6FF;
-  color: var(--azul);
-  padding: 1px 7px;
-  border-radius: 4px;
-}
-.actividad-meta { font-size: 11px; color: #94A3B8; margin: 0; }
+.act-fila { display:flex; align-items:flex-start; gap:10px; padding:9px 0; border-bottom:1px solid #F1F5F9; }
+.act-fila:last-child { border-bottom:none; }
+.act-dot { width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.act-dot--ok  { background:#D1FAE5; color:#065F46; }
+.act-dot--err { background:#FEE2E2; color:#991B1B; }
+.act-dot__svg { width:13px; height:13px; }
+.act-body { flex:1; min-width:0; }
+.act-txt  { font-size:12px; color:#334155; margin:0 0 2px; }
+.act-tag  { margin-left:6px; font-size:11px; background:#EFF6FF; color:#185FA5; padding:1px 7px; border-radius:4px; }
+.act-meta { font-size:11px; color:#94A3B8; margin:0; }
 
-/* ── Tabla placeholder ── */
-.tabla-placeholder { margin-top: 8px; }
-.tabla-header-row {
-  display: grid;
-  grid-template-columns: 130px 140px 1fr 120px 110px 90px;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #F8FAFC;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  color: #94A3B8;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-  margin-bottom: 4px;
-}
-.tabla-placeholder-row {
-  display: grid;
-  grid-template-columns: 130px 140px 1fr 120px 110px 90px;
-  gap: 8px;
-  padding: 10px 12px;
-  border-bottom: 1px solid #F1F5F9;
-  align-items: center;
-}
-.ph-bar {
-  height: 10px;
-  background: #F1F5F9;
-  border-radius: 4px;
-  display: block;
-}
-.ph-bar--fecha   { width: 100px; }
-.ph-bar--usuario { width: 110px; }
-.ph-bar--accion  { width: 80%; }
-.ph-bar--exp     { width: 90px; }
-.ph-bar--ip      { width: 80px; }
-.ph-bar--res     { width: 60px; }
+/* ── Placeholders ── */
+.ph { height:10px; background:#F1F5F9; border-radius:4px; display:block; }
+.ph--lg { width:70%; }
+.ph--sm { width:40%; }
+.mt4 { margin-top:4px; }
 
-/* ── Log acciones ── */
-.log-acciones {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--borde);
-}
-.btn-secundario {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 12px;
-  background: var(--fondo);
-  border: 1px solid var(--borde);
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #475569;
-  cursor: pointer;
-  font-family: 'Poppins', sans-serif;
-  transition: background .15s;
-}
-.btn-secundario:hover { background: #EFF6FF; color: var(--azul); }
-.btn-primario {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 7px 14px;
-  background: var(--azul);
-  border: none;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #fff;
-  cursor: pointer;
-  font-family: 'Poppins', sans-serif;
-  transition: background .15s;
-  margin-left: auto;
-}
-.btn-primario:hover { background: #144d87; }
-.btn-icon { width: 13px; height: 13px; }
+/* ── Botones log ── */
+.log-btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; padding-top:14px; border-top:1px solid #E2E8F0; align-items:center; }
+.btn-sec { display:inline-flex; align-items:center; gap:5px; padding:6px 11px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:7px; font-size:12px; font-weight:500; color:#475569; cursor:pointer; font-family:'Poppins',sans-serif; transition:background .15s; white-space:nowrap; }
+.btn-sec:hover { background:#EFF6FF; color:#185FA5; }
+.btn-sec__ico { width:12px; height:12px; }
 
 /* ── Roles ── */
-.roles-lista { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
-.rol-fila { display: flex; align-items: center; gap: 8px; }
-.rol-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.rol-nombre { flex: 1; font-size: 13px; color: #475569; }
-.rol-total { font-size: 13px; font-weight: 700; color: var(--texto); }
-.barra-roles {
-  height: 8px;
-  border-radius: 4px;
-  overflow: hidden;
-  display: flex;
-  background: #F1F5F9;
-  margin-bottom: 18px;
-}
-.barra-segmento { height: 100%; }
+.roles { display:flex; flex-direction:column; gap:10px; margin-bottom:14px; }
+.rol-fila { display:flex; align-items:center; gap:8px; }
+.rol-dot  { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.rol-nombre { flex:1; font-size:13px; color:#475569; }
+.rol-total  { font-size:13px; font-weight:700; color:#1E293B; }
+.barra-roles { height:7px; border-radius:4px; overflow:hidden; display:flex; background:#F1F5F9; margin-bottom:4px; }
+.barra-seg   { height:100%; }
 
-/* ── Accesos directos ── */
-.accesos-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-.acceso-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  padding: 14px 8px;
-  background: #F8FAFC;
-  border: 1px solid var(--borde);
-  border-radius: 10px;
-  text-decoration: none;
-  color: #475569;
-  font-size: 11px;
-  font-weight: 500;
-  transition: all .15s;
-}
-.acceso-item:hover { background: #EFF6FF; color: var(--azul); border-color: var(--azul); }
-.acceso-icon { width: 20px; height: 20px; }
-
-/* ── Badges ── */
-.badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
-.badge--urgente { background: #FEE2E2; color: #991B1B; }
+/* ── Accesos ── */
+.accesos-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.acceso { display:flex; flex-direction:column; align-items:center; gap:5px; padding:12px 8px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:10px; text-decoration:none; color:#475569; font-size:11px; font-weight:500; transition:all .15s; }
+.acceso:hover { background:#EFF6FF; color:#185FA5; border-color:#185FA5; }
+.acceso__ico { width:20px; height:20px; }
 
 /* ── Responsive ── */
-@media (max-width: 1200px) {
-  .stats-grid        { grid-template-columns: repeat(2, 1fr); }
-  .bloque-inferior   { grid-template-columns: 1fr; }
+@media (max-width:1100px) {
+  .stats    { grid-template-columns:repeat(2,1fr); }
+  .inferior { grid-template-columns:1fr; }
+  .log-cols { display:none; }
 }
-@media (max-width: 640px) {
-  .stats-grid        { grid-template-columns: 1fr; }
-  .page-header       { flex-direction: column; }
-  .tabla-header-row,
-  .tabla-placeholder-row { grid-template-columns: 1fr 1fr 1fr; }
+@media (max-width:640px) {
+  .stats        { grid-template-columns:1fr; }
+  .db__header   { flex-direction:column; }
+  .db__accesos  { width:100%; }
+  .btn          { flex:1; text-align:center; justify-content:center; }
+  .log-btns     { flex-direction:column; align-items:stretch; }
+  .btn-sec      { justify-content:center; }
+  .ml-auto      { margin-left:0; }
 }
 </style>
