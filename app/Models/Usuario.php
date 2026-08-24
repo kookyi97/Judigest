@@ -13,9 +13,9 @@ class Usuario extends Authenticatable
     protected $table = 'usuarios';
 
     protected $fillable = [
-        'nombre','apellido','correo','contrasena',
+        'nombre_usuario', 'nombre','apellido','correo','contrasena',
         'rol','activo','intentos_fallidos',
-        'bloqueado_hasta','foto_perfil'
+        'bloqueado_hasta','foto_perfil', 'modificado_por'
     ];
 
     protected $hidden = ['contrasena', 'remember_token'];
@@ -32,11 +32,6 @@ class Usuario extends Authenticatable
         return $this->contrasena;
     }
 
-    // Le dice a Laravel que el campo username es 'correo'
-    public function getAuthIdentifierName()
-    {
-        return 'correo';
-    }
 
     public function estaBloqueado(): bool
     {
@@ -44,5 +39,10 @@ class Usuario extends Authenticatable
             return true;
         }
         return false;
+    }
+
+    public function modificador()
+    {
+        return $this->belongsTo(Usuario::class, 'modificado_por');
     }
 }

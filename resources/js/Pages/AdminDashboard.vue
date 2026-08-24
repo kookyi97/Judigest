@@ -1,6 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { computed } from 'vue';
+import { Link } from '@inertiajs/vue3';
 import { FileText, Users, Calendar, Activity, LayoutDashboard, AlertTriangle, CheckCircle, Clock, Download, Filter } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -31,9 +32,9 @@ const coloresRol = { administrador:'#185FA5', secretario:'#16A34A', asesor:'#D97
           <p class="db__sub">Estado del sistema en tiempo real</p>
         </div>
         <div class="db__accesos">
-          <a href="/usuarios"      class="btn">Gestión de Usuarios</a>
-          <a href="/auditoria"     class="btn">Log de Actividad</a>
-          <a href="/configuracion" class="btn btn--outline">Configuración</a>
+          <Link href="/usuarios" class="btn">Gestión de Usuarios</Link>
+          <Link href="/auditoria" class="btn">Log de Actividad</Link>
+          <Link href="/configuracion" class="btn btn--outline">Configuración</Link>
         </div>
       </div>
 

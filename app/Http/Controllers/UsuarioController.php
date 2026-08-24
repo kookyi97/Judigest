@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
+use App\Models\Usuario;
+use Inertia\Inertia;
 
 class UsuarioController extends Controller
 {
@@ -19,7 +21,7 @@ class UsuarioController extends Controller
      */
     public function create()
     {
-        //
+        return Inertia::render('Usuarios/Create');
     }
 
     /**
@@ -27,15 +29,23 @@ class UsuarioController extends Controller
      */
     public function store(Request $request) {
     $request->validate([
+        'nombre_usuario' => 'required|max:50|unique:usuarios,nombre_usuario',
         'nombre'     => 'required|max:100',
         'apellido'   => 'required|max:100',
         'correo'     => 'required|email|unique:usuarios,correo',
         'contrasena' => 'required|min:8|confirmed',
         'rol'        => 'required|in:administrador,secretario,asesor,practicante',
+        'activo'     => 'boolean',
+    ], [
+        'nombre_usuario.unique' => 'Ya existe un usuario con este nombre de usuario.',
+        'correo.unique' => 'Ya existe un usuario registrado con este correo.',
+        'contrasena.confirmed' => 'Las contraseñas no coinciden.',
     ]);
+    
     // JD044: hash automático via cast 'hashed'
     Usuario::create($request->all());
-    return redirect()->back()->with('exito', 'Usuario creado correctamente.');
+    
+    return redirect()->route('usuarios.index')->with('exito', 'Usuario creado correctamente.');
 }
 
     /**
@@ -49,9 +59,12 @@ class UsuarioController extends Controller
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(string $id)
+    public function edit(Usuario $usuario)
     {
-        //
+        $usuario->load('modificador');
+        return Inertia::render('Usuarios/Edit', [
+            'usuario' => $usuario
+        ]);
     }
 
     /**
@@ -59,18 +72,26 @@ class UsuarioController extends Controller
      */
     public function update(Request $request, Usuario $usuario) {
     $request->validate([
+        'nombre_usuario'=> 'required|max:50|unique:usuarios,nombre_usuario,'.$usuario->id,
         'nombre'  => 'required|max:100',
         'apellido'=> 'required|max:100',
         'correo'  => 'required|email|unique:usuarios,correo,'.$usuario->id,
         'rol'     => 'required|in:administrador,secretario,asesor,practicante',
         'activo'  => 'boolean',
+    ], [
+        'nombre_usuario.unique' => 'Ya existe un usuario con este nombre de usuario.',
+        'correo.unique' => 'Ya existe un usuario registrado con este correo.',
     ]);
+    
     $data = $request->except('contrasena');
     if ($request->filled('contrasena')) {
         $data['contrasena'] = $request->contrasena; // cast lo hashea
     }
+    
+    $data['modificado_por'] = \Illuminate\Support\Facades\Auth::id();
+
     $usuario->update($data);
-    return redirect()->back()->with('exito', 'Usuario actualizado.');
+    return redirect()->route('usuarios.index')->with('exito', 'Usuario actualizado exitosamente.');
 }
 
     /**
