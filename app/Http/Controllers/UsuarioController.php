@@ -12,7 +12,7 @@ class UsuarioController extends Controller
      * Display a listing of the resource.
      */
     public function index() {
-    $usuarios = Usuario::withTrashed()->orderBy('created_at','desc')->get();
+    $usuarios = Usuario::with('modificador')->withTrashed()->orderBy('created_at','desc')->get();
     return Inertia::render('Usuarios/Index', compact('usuarios'));
 }
 
@@ -100,5 +100,27 @@ class UsuarioController extends Controller
     public function destroy(string $id)
     {
         //
+    }
+
+    /**
+     * Restablecer la contraseña de un usuario por una ingresada manualmente por el admin.
+     */
+    public function resetPassword(Request $request, Usuario $usuario)
+    {
+        $request->validate([
+            'contrasena' => 'required|min:8'
+        ], [
+            'contrasena.required' => 'La nueva contraseña es obligatoria.',
+            'contrasena.min' => 'La nueva contraseña debe tener al menos 8 caracteres.'
+        ]);
+
+        // Actualizar el usuario (el mutador/cast aplicará el hash)
+        $usuario->update([
+            'contrasena' => $request->contrasena,
+            'modificado_por' => \Illuminate\Support\Facades\Auth::id()
+        ]);
+        
+        // Retornar mensaje de éxito
+        return back()->with('exito', 'Contraseña actualizada exitosamente.');
     }
 }

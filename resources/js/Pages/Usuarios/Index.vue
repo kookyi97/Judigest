@@ -1,7 +1,8 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
-import { Head, Link } from '@inertiajs/vue3';
-import { Users, Plus, Edit, Trash2, CheckCircle, AlertTriangle } from 'lucide-vue-next';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Users, Plus, Edit, Trash2, CheckCircle, AlertTriangle, Key } from 'lucide-vue-next';
+import { ref, watch } from 'vue';
 
 const props = defineProps({
   usuarios: {
@@ -18,6 +19,43 @@ const getRoleColor = (rol) => {
     practicante: '#9333EA' 
   };
   return roles[rol?.toLowerCase()] || '#94A3B8';
+};
+
+const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const d = new Date(dateString);
+    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const page = usePage();
+const showPasswordModal = ref(false);
+const usuarioSeleccionado = ref(null);
+const nuevaContrasenaManual = ref('');
+const errorContrasena = ref('');
+
+const abrirModalContrasena = (usuario) => {
+  usuarioSeleccionado.value = usuario;
+  nuevaContrasenaManual.value = '';
+  errorContrasena.value = '';
+  showPasswordModal.value = true;
+};
+
+const guardarNuevaContrasena = () => {
+  if (nuevaContrasenaManual.value.length < 8) {
+    errorContrasena.value = 'La contraseña debe tener al menos 8 caracteres.';
+    return;
+  }
+  
+  router.post(`/admin/usuarios/${usuarioSeleccionado.value.id}/reset-password`, {
+    contrasena: nuevaContrasenaManual.value
+  }, { 
+    preserveScroll: true,
+    onSuccess: () => {
+      showPasswordModal.value = false;
+      usuarioSeleccionado.value = null;
+      alert('La contraseña se ha restablecido y guardado exitosamente.');
+    }
+  });
 };
 </script>
 
@@ -51,6 +89,7 @@ const getRoleColor = (rol) => {
                 <th>Correo Electrónico</th>
                 <th>Rol</th>
                 <th>Estado</th>
+                <th>Última Modificación</th>
                 <th class="text-right">Acciones</th>
               </tr>
             </thead>
@@ -79,8 +118,15 @@ const getRoleColor = (rol) => {
                     {{ usuario.activo ? 'Activo' : 'Inactivo' }}
                   </span>
                 </td>
+                <td>
+                  <div style="font-size: 12px; color: #1E293B;">{{ formatDate(usuario.updated_at) }}</div>
+                  <div style="font-size: 11px; color: #64748B;">por {{ usuario.modificador ? (usuario.modificador.nombre + ' ' + usuario.modificador.apellido) : 'Sistema' }}</div>
+                </td>
                 <td class="text-right">
                   <div class="actions">
+                    <button @click="abrirModalContrasena(usuario)" class="action-btn action-key" title="Asignar Nueva Contraseña">
+                      <Key class="action-ico" />
+                    </button>
                     <Link :href="`/usuarios/${usuario.id}/edit`" class="action-btn action-edit" title="Editar">
                       <Edit class="action-ico" />
                     </Link>
@@ -98,6 +144,25 @@ const getRoleColor = (rol) => {
           </div>
           <h3 class="empty-state__title">No hay usuarios registrados</h3>
           <p class="empty-state__desc">Aún no se han agregado usuarios al sistema.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal de Asignar Contraseña -->
+    <div v-if="showPasswordModal" class="modal-overlay">
+      <div class="modal">
+        <h3 class="modal-title">Asignar Nueva Contraseña</h3>
+        <p class="modal-desc">Ingresa la nueva contraseña para <strong>{{ usuarioSeleccionado?.nombre }} {{ usuarioSeleccionado?.apellido }}</strong>.</p>
+        
+        <div class="form-group" style="margin-bottom: 20px;">
+          <label style="display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px;">Nueva Contraseña</label>
+          <input type="text" v-model="nuevaContrasenaManual" class="input-form" placeholder="Escribe la nueva contraseña..." />
+          <p v-if="errorContrasena" style="color: #EF4444; font-size: 12px; margin-top: 6px; margin-bottom: 0;">{{ errorContrasena }}</p>
+        </div>
+
+        <div class="modal-actions">
+          <button @click="showPasswordModal = false" class="btn btn-outline">Cancelar</button>
+          <button @click="guardarNuevaContrasena" class="btn">Guardar Contraseña</button>
         </div>
       </div>
     </div>
@@ -153,6 +218,7 @@ const getRoleColor = (rol) => {
 .action-btn { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid #E2E8F0; color: #64748B; cursor: pointer; transition: all 0.2s; }
 .action-btn:hover { background: #F8FAFC; color: #1E293B; }
 .action-edit:hover { color: #185FA5; border-color: #185FA5; background: #EFF6FF; }
+.action-key:hover { color: #D97706; border-color: #D97706; background: #FEF3C7; }
 .action-ico { width: 16px; height: 16px; }
 
 /* ── Empty State ── */
@@ -161,4 +227,18 @@ const getRoleColor = (rol) => {
 .empty-state__svg { width: 32px; height: 32px; }
 .empty-state__title { font-size: 18px; font-weight: 600; color: #1E293B; margin: 0 0 8px; }
 .empty-state__desc { font-size: 14px; color: #64748B; margin: 0; }
+
+/* ── Modal ── */
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(15,23,42,0.6); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); }
+.modal { background: #fff; padding: 24px; border-radius: 12px; width: 100%; max-width: 420px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); }
+.modal-title { margin: 0 0 10px; font-size: 18px; color: #1E293B; font-weight: 600; }
+.modal-desc { margin: 0 0 20px; font-size: 14px; color: #64748B; line-height: 1.5; }
+.password-box { display: flex; justify-content: space-between; align-items: center; background: #F1F5F9; padding: 12px 16px; border-radius: 8px; margin-bottom: 24px; border: 1px dashed #CBD5E1; }
+.password-box code { font-size: 18px; font-weight: 700; color: #0F172A; letter-spacing: 2px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; }
+.btn-sm { padding: 6px 12px; font-size: 13px; border-radius: 6px; }
+.btn-outline { background: transparent; color: #64748B; border: 1px solid #CBD5E1; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.btn-outline:hover { background: #F8FAFC; color: #0F172A; border-color: #94A3B8; }
+.input-form { width: 100%; padding: 10px 14px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 14px; color: #1E293B; outline: none; transition: border-color 0.2s; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+.input-form:focus { border-color: #185FA5; }
 </style>

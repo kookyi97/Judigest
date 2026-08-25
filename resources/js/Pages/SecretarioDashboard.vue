@@ -16,8 +16,14 @@ const stats = computed(() => [
   { label:'Notificaciones pendientes', valor:props.estadisticas.notificacionesPendientes??0,sub:'por enviar',          bg:'#FDF4FF', color:'#9333EA', icono:Bell },
 ]);
 
-const colorEstado = { pendiente:{bg:'#DBEAFE',txt:'#1E40AF'}, en_proceso:{bg:'#FEF3C7',txt:'#92400E'}, cerrado:{bg:'#D1FAE5',txt:'#065F46'}, urgente:{bg:'#FEE2E2',txt:'#991B1B'} };
-const labelEstado = { pendiente:'Pendiente', en_proceso:'En proceso', cerrado:'Cerrado', urgente:'Urgente' };
+const colorEstado = {
+  'Abierto': { bg:'#E0F2FE', txt:'#0369A1' },
+  'En Proceso': { bg:'#FEF3C7', txt:'#B45309' },
+  'Resuelto': { bg:'#D1FAE5', txt:'#047857' },
+  'Cerrado': { bg:'#F1F5F9', txt:'#334155' },
+  'Archivado': { bg:'#FFE4E6', txt:'#BE123C' }
+};
+const labelEstado = { 'Abierto':'Abierto', 'En Proceso':'En Proceso', 'Resuelto':'Resuelto', 'Cerrado':'Cerrado', 'Archivado':'Archivado' };
 </script>
 
 <template>
@@ -74,7 +80,6 @@ const labelEstado = { pendiente:'Pendiente', en_proceso:'En proceso', cerrado:'C
           </template>
 
           <div class="acciones">
-            <a href="/expedientes/nuevo" class="btn btn--sm"><Plus class="btn__ico"/>Crear expediente</a>
             <a href="/expedientes" class="btn-sec">Editar expediente</a>
             <a href="/expedientes" class="btn-sec">Cambiar estado</a>
             <a href="/expedientes" class="btn-sec">Archivar caso</a>

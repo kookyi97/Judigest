@@ -37,7 +37,7 @@ const submit = () => {
 const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     const d = new Date(dateString);
-    return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' });
+    return d.toLocaleString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 </script>
 
