@@ -114,4 +114,56 @@ Route::middleware('auth')->group(function () {
     Route::put('/expedientes/{expediente}', [\App\Http\Controllers\ExpedienteController::class, 'update'])
         ->name('expedientes.update')
         ->middleware('rol:secretario');
+
+// JD019 - Cambiar estado
+Route::put(
+    '/expedientes/{expediente}/estado',
+    [\App\Http\Controllers\ExpedienteController::class, 'cambiarEstado']
+)
+->name('expedientes.estado')
+->middleware('rol:secretario');
+
+
+// JD020 - Archivar
+Route::put(
+    '/expedientes/{expediente}/archivar',
+    [\App\Http\Controllers\ExpedienteController::class, 'archivar']
+)
+->name('expedientes.archivar')
+->middleware('rol:secretario');
+
+
+// JD022 - Exportar
+// IMPORTANTE: antes de /expedientes/{expediente}
+Route::get(
+    '/expedientes/exportar/excel',
+    [\App\Http\Controllers\ExpedienteController::class, 'exportarExcel']
+)
+->name('expedientes.exportar.excel')
+->middleware('rol:administrador,secretario');
+
+
+// JD034 - Ver detalle
+Route::get(
+    '/expedientes/{expediente}',
+    [\App\Http\Controllers\ExpedienteController::class, 'show']
+)
+->name('expedientes.show')
+->middleware('rol:secretario,asesor,practicante');
+
+
+// JD029 - Subir documento
+Route::post(
+    '/expedientes/{expediente}/documentos',
+    [\App\Http\Controllers\ExpedienteController::class, 'subirDocumento']
+)
+->name('expedientes.documentos.store')
+->middleware('rol:secretario,practicante');
+
+Route::get(
+    '/documentos/{documento}/ver',
+    [\App\Http\Controllers\ExpedienteController::class, 'verDocumento']
+)
+->name('documentos.ver')
+->middleware('rol:secretario,asesor,practicante');
 });

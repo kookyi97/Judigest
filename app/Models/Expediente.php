@@ -42,4 +42,9 @@ class Expediente extends Model
     {
         return $this->belongsTo(Usuario::class, 'modificado_por');
     }
+
+    public function documentos()
+    {
+        return $this->hasMany(Documento::class, 'expediente_id');
+    }
 }
