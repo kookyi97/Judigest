@@ -12,14 +12,15 @@ class Documento extends Model
     protected $table = 'documentos';
 
     protected $fillable = [
-        'expediente_id',
-        'nombre_original',
-        'nombre_archivo',
-        'ruta',
-        'tipo_mime',
-        'tamano',
-        'subido_por',
-    ];
+    'expediente_id',
+    'nombre_original',
+    'nombre_archivo',
+    'ruta',
+    'tipo_mime',
+    'tamano',
+    'hash_sha256',
+    'subido_por',
+];
 
     public function expediente()
     {

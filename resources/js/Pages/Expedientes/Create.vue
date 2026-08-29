@@ -7,14 +7,20 @@ const props = defineProps({
   asesores: {
     type: Array,
     default: () => []
+  },
+  practicantes: {
+    type: Array,
+    default: () => []
   }
 });
+
 
 const form = useForm({
     numero_expediente: '',
     cliente: '',
     tipo_proceso: 'Civil', // Default
     asesor_id: '',
+    practicante_id: '',
     fecha_ingreso: '',
     estado: 'Abierto',
     descripcion: '',
@@ -97,6 +103,41 @@ const submit = () => {
               <span class="error-msg" v-if="form.errors.asesor_id">{{ form.errors.asesor_id }}</span>
             </div>
           </div>
+          
+        <div class="campo campo--mitad" :class="{'has-error': form.errors.practicante_id}">
+        <label class="campo__label">
+            Practicante Asignado
+        </label>
+
+        <div class="input-grupo">
+            <User class="input-ico" />
+
+            <select
+                class="input-select"
+                v-model="form.practicante_id"
+            >
+                <option value="">
+                    Sin practicante asignado
+                </option>
+
+                <option
+                    v-for="practicante in practicantes"
+                    :key="practicante.id"
+                    :value="practicante.id"
+                >
+                    {{ practicante.nombre }}
+                    {{ practicante.apellido }}
+                </option>
+            </select>
+        </div>
+
+    <span
+        class="error-msg"
+        v-if="form.errors.practicante_id"
+    >
+        {{ form.errors.practicante_id }}
+    </span>
+</div>
 
           <div class="campos-fila">
             <!-- Fecha de Ingreso -->

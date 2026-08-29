@@ -13,16 +13,17 @@ class Expediente extends Model
     protected $table = 'expedientes';
 
     protected $fillable = [
-        'numero_expediente',
-        'cliente',
-        'tipo_proceso',
-        'asesor_id',
-        'fecha_ingreso',
-        'creado_por',
-        'descripcion',
-        'estado',
-        'modificado_por',
-    ];
+    'numero_expediente',
+    'cliente',
+    'tipo_proceso',
+    'asesor_id',
+    'practicante_id',
+    'fecha_ingreso',
+    'creado_por',
+    'descripcion',
+    'estado',
+    'modificado_por',
+];
 
     protected $casts = [
         'fecha_ingreso' => 'date',
@@ -31,6 +32,11 @@ class Expediente extends Model
     public function asesor()
     {
         return $this->belongsTo(Usuario::class, 'asesor_id');
+    }
+
+    public function practicante()
+    {   
+        return $this->belongsTo(Usuario::class, 'practicante_id');
     }
 
     public function creador()
@@ -46,5 +52,10 @@ class Expediente extends Model
     public function documentos()
     {
         return $this->hasMany(Documento::class, 'expediente_id');
+    }
+
+    public function historial()
+    {
+        return $this->hasMany(HistorialExpediente::class, 'expediente_id');
     }
 }
