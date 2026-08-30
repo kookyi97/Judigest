@@ -120,7 +120,6 @@ class ExpedienteController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'numero_expediente' => 'required|string|max:50|unique:expedientes,numero_expediente',
             'cliente' => 'required|string|max:150',
             'tipo_proceso' => 'required|in:Civil,Penal,Laboral,Familia,Administrativo',
             'asesor_id' => 'required|integer|exists:usuarios,id',
@@ -129,6 +128,20 @@ class ExpedienteController extends Controller
             'descripcion' => 'nullable|string|max:5000',
             'estado' => 'nullable|in:Abierto,En Proceso,Resuelto,Cerrado,Archivado',
         ]);
+
+        $añoActual = date('Y');
+        $ultimoExpediente = Expediente::where('numero_expediente', 'like', "EXP-{$añoActual}-%")
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if ($ultimoExpediente) {
+            $ultimoNumero = (int) substr($ultimoExpediente->numero_expediente, -4);
+            $nuevoNumero = $ultimoNumero + 1;
+        } else {
+            $nuevoNumero = 1;
+        }
+
+        $data['numero_expediente'] = sprintf("EXP-%s-%04d", $añoActual, $nuevoNumero);
 
         abort_unless(
             Usuario::where('id', $data['asesor_id'])

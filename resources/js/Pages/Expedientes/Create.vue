@@ -16,7 +16,6 @@ const props = defineProps({
 
 
 const form = useForm({
-    numero_expediente: '',
     cliente: '',
     tipo_proceso: 'Civil', // Default
     asesor_id: '',
@@ -50,16 +49,6 @@ const submit = () => {
         <form class="formulario" @submit.prevent="submit" novalidate>
           
           <div class="campos-fila">
-            <!-- Número de Expediente -->
-            <div class="campo campo--mitad" :class="{'has-error': form.errors.numero_expediente}">
-              <label class="campo__label">Número de Expediente <span class="req">*</span></label>
-              <div class="input-grupo">
-                <FileText class="input-ico" />
-                <input type="text" class="input-text" v-model="form.numero_expediente" placeholder="Ej. EXP-2026-001" />
-              </div>
-              <span class="error-msg" v-if="form.errors.numero_expediente">{{ form.errors.numero_expediente }}</span>
-            </div>
-
             <!-- Cliente -->
             <div class="campo campo--mitad" :class="{'has-error': form.errors.cliente}">
               <label class="campo__label">Información del Cliente <span class="req">*</span></label>
@@ -69,9 +58,7 @@ const submit = () => {
               </div>
               <span class="error-msg" v-if="form.errors.cliente">{{ form.errors.cliente }}</span>
             </div>
-          </div>
 
-          <div class="campos-fila">
             <!-- Tipo de Proceso -->
             <div class="campo campo--mitad" :class="{'has-error': form.errors.tipo_proceso}">
               <label class="campo__label">Tipo de Proceso Jurídico <span class="req">*</span></label>
@@ -87,7 +74,9 @@ const submit = () => {
               </div>
               <span class="error-msg" v-if="form.errors.tipo_proceso">{{ form.errors.tipo_proceso }}</span>
             </div>
+          </div>
 
+          <div class="campos-fila">
             <!-- Asesor Responsable -->
             <div class="campo campo--mitad" :class="{'has-error': form.errors.asesor_id}">
               <label class="campo__label">Asesor Responsable <span class="req">*</span></label>
@@ -102,42 +91,22 @@ const submit = () => {
               </div>
               <span class="error-msg" v-if="form.errors.asesor_id">{{ form.errors.asesor_id }}</span>
             </div>
+
+            <!-- Practicante Asignado -->
+            <div class="campo campo--mitad" :class="{'has-error': form.errors.practicante_id}">
+              <label class="campo__label">Practicante Asignado</label>
+              <div class="input-grupo">
+                <User class="input-ico" />
+                <select class="input-select" v-model="form.practicante_id">
+                  <option value="">Sin practicante asignado</option>
+                  <option v-for="practicante in practicantes" :key="practicante.id" :value="practicante.id">
+                    {{ practicante.nombre }} {{ practicante.apellido }}
+                  </option>
+                </select>
+              </div>
+              <span class="error-msg" v-if="form.errors.practicante_id">{{ form.errors.practicante_id }}</span>
+            </div>
           </div>
-          
-        <div class="campo campo--mitad" :class="{'has-error': form.errors.practicante_id}">
-        <label class="campo__label">
-            Practicante Asignado
-        </label>
-
-        <div class="input-grupo">
-            <User class="input-ico" />
-
-            <select
-                class="input-select"
-                v-model="form.practicante_id"
-            >
-                <option value="">
-                    Sin practicante asignado
-                </option>
-
-                <option
-                    v-for="practicante in practicantes"
-                    :key="practicante.id"
-                    :value="practicante.id"
-                >
-                    {{ practicante.nombre }}
-                    {{ practicante.apellido }}
-                </option>
-            </select>
-        </div>
-
-    <span
-        class="error-msg"
-        v-if="form.errors.practicante_id"
-    >
-        {{ form.errors.practicante_id }}
-    </span>
-</div>
 
           <div class="campos-fila">
             <!-- Fecha de Ingreso -->

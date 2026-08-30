@@ -158,16 +158,10 @@ const formatearTamano = (tamano) => {
 
                         <div class="campos-fila">
 
-                            <!-- Número de Expediente -->
-                            <div
-                                class="campo campo--mitad"
-                                :class="{
-                                    'has-error': form.errors.numero_expediente
-                                }"
-                            >
+                            <!-- Número de Expediente (Solo lectura) -->
+                            <div class="campo campo--mitad">
                                 <label class="campo__label">
                                     Número de Expediente
-                                    <span class="req">*</span>
                                 </label>
 
                                 <div class="input-grupo">
@@ -177,7 +171,8 @@ const formatearTamano = (tamano) => {
                                         type="text"
                                         class="input-text"
                                         v-model="form.numero_expediente"
-                                        placeholder="Ej. EXP-2026-001"
+                                        readonly
+                                        style="background-color: #F8FAFC; color: #64748B; cursor: not-allowed;"
                                     />
                                 </div>
 
