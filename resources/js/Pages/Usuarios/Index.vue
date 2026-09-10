@@ -1,7 +1,7 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Users, Plus, Edit, Trash2, CheckCircle, AlertTriangle, Key } from 'lucide-vue-next';
+import { Users, Plus, Edit, Trash2, CheckCircle, AlertTriangle, Key, X } from 'lucide-vue-next';
 import { ref, watch } from 'vue';
 
 const props = defineProps({
@@ -33,6 +33,41 @@ const usuarioSeleccionado = ref(null);
 const nuevaContrasenaManual = ref('');
 const errorContrasena = ref('');
 
+// Sistema de Notificaciones Toast Personalizadas
+const notificacion = ref({
+  visible: false,
+  titulo: '',
+  mensaje: '',
+  tipo: 'exito'
+});
+
+let temporizadorNotificacion = null;
+
+const mostrarNotificacion = (titulo, mensaje, tipo = 'exito') => {
+  if (temporizadorNotificacion) clearTimeout(temporizadorNotificacion);
+  notificacion.value = {
+    visible: true,
+    titulo,
+    mensaje,
+    tipo
+  };
+  temporizadorNotificacion = setTimeout(() => {
+    notificacion.value.visible = false;
+  }, 4500);
+};
+
+const cerrarNotificacion = () => {
+  if (temporizadorNotificacion) clearTimeout(temporizadorNotificacion);
+  notificacion.value.visible = false;
+};
+
+// Detectar mensajes flash de Laravel si existen
+watch(() => page.props.flash?.exito, (nuevo) => {
+  if (nuevo && !notificacion.value.visible) {
+    mostrarNotificacion('¡Operación Exitosa!', nuevo, 'exito');
+  }
+}, { immediate: true });
+
 const abrirModalContrasena = (usuario) => {
   usuarioSeleccionado.value = usuario;
   nuevaContrasenaManual.value = '';
@@ -53,7 +88,12 @@ const guardarNuevaContrasena = () => {
     onSuccess: () => {
       showPasswordModal.value = false;
       usuarioSeleccionado.value = null;
-      alert('La contraseña se ha restablecido y guardado exitosamente.');
+      mostrarNotificacion('¡Contraseña Restablecida!', 'La contraseña se ha actualizado y guardado exitosamente.', 'exito');
+    },
+    onError: (errors) => {
+      const primerError = Object.values(errors)[0] || 'Ocurrió un error al restablecer la contraseña.';
+      errorContrasena.value = primerError;
+      mostrarNotificacion('Error', primerError, 'error');
     }
   });
 };
@@ -166,6 +206,23 @@ const guardarNuevaContrasena = () => {
         </div>
       </div>
     </div>
+
+    <!-- Notificación Toast Personalizada Judigest -->
+    <Transition name="toast">
+      <div v-if="notificacion.visible" class="toast-card" :class="'toast-card--' + notificacion.tipo">
+        <div class="toast-icono-contenedor">
+          <CheckCircle v-if="notificacion.tipo === 'exito'" class="toast-ico" />
+          <AlertTriangle v-else class="toast-ico" />
+        </div>
+        <div class="toast-cuerpo">
+          <div class="toast-titulo">{{ notificacion.titulo }}</div>
+          <div class="toast-mensaje">{{ notificacion.mensaje }}</div>
+        </div>
+        <button @click="cerrarNotificacion" class="toast-btn-cerrar" type="button" title="Cerrar">
+          <X class="toast-ico-cerrar" />
+        </button>
+      </div>
+    </Transition>
   </AppLayout>
 </template>
 
@@ -241,4 +298,116 @@ const guardarNuevaContrasena = () => {
 .btn-outline:hover { background: #F8FAFC; color: #0F172A; border-color: #94A3B8; }
 .input-form { width: 100%; padding: 10px 14px; border: 1px solid #CBD5E1; border-radius: 8px; font-size: 14px; color: #1E293B; outline: none; transition: border-color 0.2s; box-sizing: border-box; font-family: 'Inter', sans-serif; }
 .input-form:focus { border-color: #185FA5; }
+
+/* ── Notificación Toast Personalizada Judigest ── */
+.toast-card {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 320px;
+  max-width: 440px;
+  background: #ffffff;
+  padding: 14px 18px;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px -4px rgba(15, 23, 42, 0.12), 0 4px 6px -2px rgba(15, 23, 42, 0.05);
+  border: 1px solid #E2E8F0;
+  border-left-width: 5px;
+  font-family: 'Poppins', 'Inter', sans-serif;
+}
+
+.toast-card--exito {
+  border-left-color: #16A34A;
+}
+
+.toast-card--error {
+  border-left-color: #EF4444;
+}
+
+.toast-icono-contenedor {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.toast-card--exito .toast-icono-contenedor {
+  background: #DCFCE7;
+  color: #16A34A;
+}
+
+.toast-card--error .toast-icono-contenedor {
+  background: #FEE2E2;
+  color: #EF4444;
+}
+
+.toast-ico {
+  width: 20px;
+  height: 20px;
+}
+
+.toast-cuerpo {
+  flex: 1;
+  min-width: 0;
+}
+
+.toast-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0F172A;
+  margin-bottom: 2px;
+}
+
+.toast-mensaje {
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.toast-btn-cerrar {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: #94A3B8;
+  padding: 4px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.toast-btn-cerrar:hover {
+  color: #1E293B;
+  background: #F1F5F9;
+}
+
+.toast-ico-cerrar {
+  width: 16px;
+  height: 16px;
+}
+
+/* Animaciones Toast */
+.toast-enter-active,
+.toast-leave-active {
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.toast-enter-from {
+  opacity: 0;
+  transform: translateX(40px) scale(0.95);
+}
+
+.toast-leave-to {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+}
 </style>
