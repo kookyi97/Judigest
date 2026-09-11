@@ -78,13 +78,19 @@ class ExpedienteController extends Controller
 
     public function index()
     {
-        $expedientes = Expediente::with([
+        $usuario = $this->usuarioAutenticado();
+
+        $query = Expediente::with([
             'asesor',
             'creador',
             'modificador'
-        ])
-            ->orderByDesc('created_at')
-            ->get();
+        ])->orderByDesc('created_at');
+
+        if ($usuario && $usuario->rol === 'practicante') {
+            $query->where('practicante_id', $usuario->id);
+        }
+
+        $expedientes = $query->get();
 
         $asesores = Usuario::where('rol', 'asesor')
             ->orderBy('nombre')
@@ -434,16 +440,17 @@ class ExpedienteController extends Controller
 
         /*
          * Verificamos que el usuario tenga acceso al expediente.
-         *
-         * Secretario:
-         *     puede acceder a cualquier expediente.
-         *
-         * Asesor:
-         *     solamente a sus expedientes asignados.
-         *
-         * Practicante:
-         *     solamente a sus expedientes asignados.
+         * Si el usuario es practicante, verificamos estrictamente que el expediente
+         * le haya sido asignado directamente.
          */
+        if ($usuario->rol === 'practicante') {
+            abort_unless(
+                (int) $expediente->practicante_id === (int) $usuario->id,
+                403,
+                'No tiene autorización para cargar documentos en este expediente porque no le ha sido asignado.'
+            );
+        }
+
         $this->autorizarExpediente($expediente);
 
         /*
@@ -459,8 +466,8 @@ class ExpedienteController extends Controller
         ], [
             'documento.required' => 'Debe seleccionar un documento.',
             'documento.file' => 'El archivo seleccionado no es válido.',
-            'documento.max' => 'El documento no puede superar los 10 MB.',
-            'documento.mimes' => 'Tipo de archivo no permitido.',
+            'documento.max' => 'El documento no puede superar el tamaño máximo permitido de 10 MB.',
+            'documento.mimes' => 'Formato no permitido. Solo se permiten documentos PDF, DOC, DOCX, XLS, XLSX, PNG, JPG y JPEG.',
         ]);
 
         $archivo = $request->file('documento');
@@ -562,10 +569,14 @@ class ExpedienteController extends Controller
             /*
              * Registrar la acción en el historial.
              */
+            $descripcion = $usuario->rol === 'practicante'
+                ? 'El practicante ' . $usuario->nombre . ' ' . $usuario->apellido . ' cargó el documento: ' . $nombreOriginal
+                : 'Se cargó el documento: ' . $nombreOriginal;
+
             $this->registrarHistorial(
                 $expediente,
                 'CARGA_DOCUMENTO',
-                'Se cargó un documento al expediente.',
+                $descripcion,
                 [
                     'documento_id' => $documento->id,
                     'nombre_original' => $nombreOriginal,

@@ -121,7 +121,40 @@ Route::middleware('auth')->group(function () {
         }
 
         if ($user->rol === 'practicante') {
-            return Inertia::render('PracticanteDashboard');
+            $casos = Expediente::where('practicante_id', $user->id)
+                ->with(['asesor', 'documentos'])
+                ->orderBy('updated_at', 'desc')
+                ->get();
+
+            $casosAsignados = $casos->map(function ($exp) {
+                return [
+                    'id' => $exp->id,
+                    'numero' => $exp->numero_expediente,
+                    'nombre' => $exp->cliente,
+                    'tipo' => $exp->tipo_proceso,
+                    'estado' => strtolower(str_replace(' ', '_', $exp->estado ?? 'pendiente')),
+                    'estadoLabel' => $exp->estado ?? 'Abierto',
+                    'proximaAudiencia' => 'Sin programar',
+                    'totalDocumentos' => $exp->documentos->count(),
+                ];
+            });
+
+            $primerAsesor = $casos->first()?->asesor;
+
+            return Inertia::render('PracticanteDashboard', [
+                'casosAsignados' => $casosAsignados,
+                'asesor' => $primerAsesor ? [
+                    'nombre' => $primerAsesor->nombre,
+                    'apellido' => $primerAsesor->apellido,
+                ] : null,
+                'estadisticas' => [
+                    'casosAsignados' => $casos->count(),
+                    'proximasAudiencias' => 0,
+                    'casosConActividad' => $casos->where('updated_at', '>=', now()->subDays(7))->count(),
+                    'notificacionesNoLeidas' => 0,
+                ],
+                'notificaciones' => []
+            ]);
         }
 
         abort(403, 'Rol no autorizado.');

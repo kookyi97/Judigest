@@ -1,8 +1,8 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { computed } from 'vue';
-import { FolderOpen, Calendar, Activity, Bell, CheckCircle, ChevronRight, Upload, Download } from 'lucide-vue-next';
-import { usePage } from '@inertiajs/vue3';
+import { FolderOpen, Calendar, Activity, Bell, CheckCircle, ChevronRight, Upload, Download, FileText } from 'lucide-vue-next';
+import { usePage, Link } from '@inertiajs/vue3';
 
 const page = usePage();
 const nombreUsuario = computed(() => page.props.auth?.usuario?.nombre ?? 'Practicante');
@@ -35,7 +35,7 @@ const tipoNotif = { caso:{bg:'#EFF6FF',color:'#185FA5'}, audiencia:{bg:'#D1FAE5'
           <p class="db__sub" v-if="asesor">Supervisado por <strong class="asesor-nom">{{ asesor.nombre }} {{ asesor.apellido }}</strong></p>
           <p class="db__sub" v-else>Sin asesor asignado aun</p>
         </div>
-        <a href="/casos" class="btn"><FolderOpen class="btn__ico"/>Mis casos</a>
+        <Link href="/expedientes" class="btn"><FolderOpen class="btn__ico"/>Mis expedientes</Link>
       </div>
 
       <div class="stats">
@@ -55,7 +55,7 @@ const tipoNotif = { caso:{bg:'#EFF6FF',color:'#185FA5'}, audiencia:{bg:'#D1FAE5'
         <div class="panel">
           <div class="panel__head">
             <h2 class="panel__titulo">Mis casos asignados</h2>
-            <a href="/casos" class="panel__link">Ver todos</a>
+            <Link href="/expedientes" class="panel__link">Ver todos</Link>
           </div>
 
           <div class="aviso-restriccion">
@@ -63,15 +63,23 @@ const tipoNotif = { caso:{bg:'#EFF6FF',color:'#185FA5'}, audiencia:{bg:'#D1FAE5'
           </div>
 
           <template v-if="casosAsignados && casosAsignados.length">
-            <div v-for="caso in casosAsignados" :key="caso.id" class="caso-card">
+            <Link
+              v-for="caso in casosAsignados"
+              :key="caso.id"
+              :href="`/expedientes/${caso.id}`"
+              class="caso-card caso-card--interactive"
+            >
               <div class="caso-card__info">
                 <p class="caso-card__num">{{ caso.numero }}</p>
                 <p class="caso-card__nom">{{ caso.nombre }}</p>
               </div>
               <span class="tipo-tag">{{ caso.tipo }}</span>
+              <span class="doc-badge" :title="`${caso.totalDocumentos || 0} documentos subidos`">
+                <FileText class="doc-badge__ico" /> {{ caso.totalDocumentos || 0 }} docs
+              </span>
               <span class="estado-badge" :style="{background:colorEstado[caso.estado]?.bg,color:colorEstado[caso.estado]?.txt}">{{ caso.estadoLabel??caso.estado }}</span>
-              <span class="caso-card__fecha">{{ caso.proximaAudiencia??'Sin programar' }}</span>
-            </div>
+              <ChevronRight class="caso-card__chevron" />
+            </Link>
           </template>
           <template v-else>
             <div v-for="n in 4" :key="n" class="caso-card caso-card--ph">
@@ -84,10 +92,7 @@ const tipoNotif = { caso:{bg:'#EFF6FF',color:'#185FA5'}, audiencia:{bg:'#D1FAE5'
           </template>
 
           <div class="acciones">
-            <a href="/casos"      class="btn-sec"><ChevronRight class="btn-sec__ico"/>Ver detalle del caso</a>
-            <a href="/casos"      class="btn-sec">Ver historial del expediente</a>
-            <a href="/documentos" class="btn-sec"><Upload class="btn-sec__ico"/>Subir documento</a>
-            <a href="/casos"      class="btn-sec"><Download class="btn-sec__ico"/>Descargar historial</a>
+            <Link href="/expedientes" class="btn-sec"><FolderOpen class="btn-sec__ico"/>Ver listado de expedientes</Link>
           </div>
         </div>
 
@@ -190,7 +195,12 @@ const tipoNotif = { caso:{bg:'#EFF6FF',color:'#185FA5'}, audiencia:{bg:'#D1FAE5'
 .aviso-restriccion { background:#FFF7ED; color:#92400E; border-left:3px solid #D97706; padding:9px 12px; border-radius:6px; font-size:12px; margin-bottom:12px; }
 
 /* Casos cards */
-.caso-card { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #F1F5F9; flex-wrap:wrap; }
+.caso-card { display:flex; align-items:center; gap:10px; padding:10px 0; border-bottom:1px solid #F1F5F9; flex-wrap:wrap; text-decoration:none; color:inherit; }
+.caso-card--interactive { transition:all .15s ease; padding:10px 12px; margin:0 -12px; border-radius:8px; }
+.caso-card--interactive:hover { background:#F8FAFC; transform:translateX(2px); }
+.caso-card__chevron { width:16px; height:16px; color:#94A3B8; margin-left:auto; }
+.doc-badge { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:#0369A1; background:#E0F2FE; padding:2px 8px; border-radius:12px; font-weight:500; }
+.doc-badge__ico { width:12px; height:12px; }
 .caso-card:last-of-type { border-bottom:none; }
 .caso-card--ph { opacity:.6; }
 .caso-card__info { flex:1; min-width:120px; }

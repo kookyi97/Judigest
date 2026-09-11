@@ -13,7 +13,12 @@ import {
     Eye,
     Download,
     Trash2,
-    Upload
+    Upload,
+    ShieldCheck,
+    AlertTriangle,
+    AlertCircle,
+    Loader2,
+    X
 } from 'lucide-vue-next';
 
 import { computed, ref } from 'vue';
@@ -47,11 +52,22 @@ const esPracticante = computed(() => {
 |--------------------------------------------------------------------------
 */
 
-// Secretario, asesor y practicante pueden subir documentos
+// Secretario puede subir; Practicante ÚNICAMENTE a sus casos asignados
+const esExpedienteAsignado = computed(() => {
+    if (!usuario.value) return false;
+    if (esSecretario.value) return true;
+    if (esPracticante.value) {
+        return Number(props.expediente.practicante_id) === Number(usuario.value.id);
+    }
+    return false;
+});
+
 const puedeSubir = computed(() => {
-    return ['secretario', 'practicante'].includes(
-        usuario.value?.rol
-    );
+    return esExpedienteAsignado.value;
+});
+
+const esPracticanteNoAsignado = computed(() => {
+    return esPracticante.value && Number(props.expediente.practicante_id) !== Number(usuario.value?.id);
 });
 
 // Secretario, asesor y practicante pueden ver/descargar
@@ -81,19 +97,71 @@ const puedeVerHistorial = computed(() => {
 
 const archivo = ref(null);
 const subiendo = ref(false);
+const errorArchivo = ref('');
+const errorServidor = ref('');
+const alertaExitoVisible = ref(true);
+
+const formatosPermitidos = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg'];
+const maxTamanoBytes = 10 * 1024 * 1024; // 10 MB
 
 const seleccionarArchivo = (event) => {
-    archivo.value = event.target.files[0] || null;
+    errorArchivo.value = '';
+    errorServidor.value = '';
+
+    const files = event.target.files;
+    if (!files || files.length === 0) {
+        archivo.value = null;
+        return;
+    }
+
+    const file = files[0];
+    const nombre = file.name;
+    const extension = nombre.includes('.') ? nombre.split('.').pop().toLowerCase() : '';
+
+    if (!formatosPermitidos.includes(extension)) {
+        errorArchivo.value = `Formato no permitido (.${extension || 'desconocido'}). Solo se permiten archivos PDF, Word (DOC, DOCX), Excel (XLS, XLSX) o imágenes (PNG, JPG, JPEG).`;
+        archivo.value = null;
+        event.target.value = '';
+        return;
+    }
+
+    if (file.size > maxTamanoBytes) {
+        const pesoMB = (file.size / (1024 * 1024)).toFixed(2);
+        errorArchivo.value = `El archivo supera el tamaño máximo permitido de 10 MB (peso detectado: ${pesoMB} MB).`;
+        archivo.value = null;
+        event.target.value = '';
+        return;
+    }
+
+    archivo.value = file;
 };
 
 const subirDocumento = () => {
+    errorArchivo.value = '';
+    errorServidor.value = '';
+
+    if (!puedeSubir.value) {
+        errorArchivo.value = 'No tienes autorización para subir documentos a este expediente porque no te ha sido asignado.';
+        return;
+    }
+
     if (!archivo.value) {
-        window.alert('Debe seleccionar un documento.');
+        errorArchivo.value = 'Debe seleccionar un documento antes de presionar el botón subir.';
+        return;
+    }
+
+    const extension = archivo.value.name.includes('.') ? archivo.value.name.split('.').pop().toLowerCase() : '';
+    if (!formatosPermitidos.includes(extension)) {
+        errorArchivo.value = `Formato no permitido (.${extension}). Solo se permiten archivos PDF, Word, Excel o imágenes.`;
+        return;
+    }
+
+    if (archivo.value.size > maxTamanoBytes) {
+        errorArchivo.value = 'El archivo no puede superar los 10 MB.';
         return;
     }
 
     const formData = new FormData();
-
     formData.append('documento', archivo.value);
 
     subiendo.value = true;
@@ -107,6 +175,9 @@ const subirDocumento = () => {
 
             onSuccess: () => {
                 archivo.value = null;
+                errorArchivo.value = '';
+                errorServidor.value = '';
+                alertaExitoVisible.value = true;
 
                 const input = document.getElementById(
                     'documento-input'
@@ -119,10 +190,13 @@ const subirDocumento = () => {
 
             onError: (errors) => {
                 console.error(errors);
-
-                window.alert(
-                    'No fue posible subir el documento. Verifique el archivo e intente nuevamente.'
-                );
+                if (errors.documento) {
+                    errorServidor.value = errors.documento;
+                } else if (errors.message) {
+                    errorServidor.value = errors.message;
+                } else {
+                    errorServidor.value = 'No fue posible subir el documento. Verifique los requisitos e intente nuevamente.';
+                }
             },
 
             onFinish: () => {
@@ -299,12 +373,21 @@ const eliminarDocumento = (documento) => {
             <!-- MENSAJE DE ÉXITO -->
 
             <div
-                v-if="page.props.flash?.exito"
-                class="alerta"
+                v-if="page.props.flash?.exito && alertaExitoVisible"
+                class="alerta alerta--exito"
             >
-                <CheckCircle2 />
-
-                {{ page.props.flash.exito }}
+                <div class="alerta-cuerpo">
+                    <CheckCircle2 class="alerta__ico" />
+                    <span>{{ page.props.flash.exito }}</span>
+                </div>
+                <button
+                    type="button"
+                    class="alerta-cerrar"
+                    title="Cerrar notificación"
+                    @click="alertaExitoVisible = false"
+                >
+                    <X class="w-4 h-4" />
+                </button>
             </div>
 
 
@@ -576,38 +659,52 @@ const eliminarDocumento = (documento) => {
                     </div>
 
 
-                    <!-- SUBIR DOCUMENTO -->
+                    <!-- RESTRICCIÓN PARA PRACTICANTE NO ASIGNADO -->
+                    <div
+                        v-if="esPracticanteNoAsignado"
+                        class="alerta-no-asignado"
+                    >
+                        <AlertTriangle class="alerta-no-asignado__ico" />
+                        <div>
+                            <strong>Carga de documentos restringida</strong>
+                            <p>
+                                Solo el Practicante asignado a este caso puede aportar documentación.
+                            </p>
+                        </div>
+                    </div>
 
+                    <!-- SUBIR DOCUMENTO -->
                     <div
                         v-if="puedeSubir"
                         class="subir-documento"
                     >
-
                         <div class="subir-titulo">
-
                             <Upload />
-
                             <div>
-
                                 <strong>
-                                    Subir documento
+                                    Subir documento al expediente
                                 </strong>
-
                                 <span>
-                                    PDF, Word, Excel o imágenes. Máximo 10 MB.
+                                    Formatos permitidos: PDF, Word (DOC, DOCX), Excel (XLS, XLSX) o imágenes (PNG, JPG, JPEG). Máximo 10 MB.
                                 </span>
-
                             </div>
-
                         </div>
 
+                        <!-- Errores de validación reactivos -->
+                        <div
+                            v-if="errorArchivo || errorServidor"
+                            class="alerta-error"
+                        >
+                            <AlertCircle class="alerta-error__ico" />
+                            <span>{{ errorArchivo || errorServidor }}</span>
+                        </div>
 
                         <div class="subir-form">
-
                             <input
                                 id="documento-input"
                                 type="file"
                                 accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                                :disabled="subiendo"
                                 @change="seleccionarArchivo"
                             />
 
@@ -617,24 +714,25 @@ const eliminarDocumento = (documento) => {
                                 :disabled="subiendo || !archivo"
                                 @click="subirDocumento"
                             >
-
-                                <Upload />
+                                <Loader2 v-if="subiendo" class="btn-spinner animate-spin" />
+                                <Upload v-else />
 
                                 {{
                                     subiendo
-                                        ? 'Subiendo...'
+                                        ? 'Subiendo y verificando...'
                                         : 'Subir documento'
                                 }}
-
                             </button>
-
                         </div>
 
+                        <div v-if="archivo" class="archivo-seleccionado">
+                            <FileText class="archivo-seleccionado__ico" />
+                            <span class="archivo-seleccionado__nom">{{ archivo.name }}</span>
+                            <span class="archivo-seleccionado__peso">({{ formatearTamano(archivo.size) }})</span>
+                        </div>
                     </div>
 
-
                     <!-- LISTA DE DOCUMENTOS -->
-
                     <div
                         v-if="
                             expediente.documentos &&
@@ -642,142 +740,98 @@ const eliminarDocumento = (documento) => {
                         "
                         class="documentos-lista"
                     >
-
                         <div
                             v-for="documento in expediente.documentos"
                             :key="documento.id"
                             class="documento-item"
                         >
-
                             <div class="documento-info">
-
                                 <div class="documento-icono">
-
                                     <FileText />
-
                                 </div>
 
-
                                 <div class="documento-datos">
-
-                                    <strong
-                                        :title="documento.nombre_original"
-                                    >
+                                    <strong :title="documento.nombre_original">
                                         {{ documento.nombre_original }}
                                     </strong>
 
-                                    <span>
+                                    <div class="documento-meta">
+                                        <span>{{ formatearTamano(documento.tamano) }}</span>
+                                        <span class="sep">·</span>
+                                        <span>{{ documento.tipo_mime || 'Tipo desconocido' }}</span>
+                                        <span class="sep">·</span>
+                                        <span
+                                            class="badge-sha"
+                                            :title="'Integridad SHA-256 verificada. Hash: ' + (documento.hash_sha256 || 'Registrado')"
+                                        >
+                                            <ShieldCheck class="badge-sha__ico" />
+                                            Integridad SHA-256
+                                        </span>
+                                    </div>
 
-                                        {{ formatearTamano(documento.tamano) }}
-
-                                        ·
-
-                                        {{
-                                            documento.tipo_mime ||
-                                            'Tipo desconocido'
-                                        }}
-
-                                    </span>
-
-                                    <span>
-
-                                        Subido por:
-
-                                        {{
-                                            documento.usuario
-                                                ? documento.usuario.nombre +
-                                                  ' ' +
-                                                  documento.usuario.apellido
-                                                : 'Usuario desconocido'
-                                        }}
-
-                                    </span>
-
-                                    <span>
-
-                                        Fecha:
-
-                                        {{
-                                            formatDateTime(
-                                                documento.created_at
-                                            )
-                                        }}
-
-                                    </span>
-
+                                    <div class="documento-autor">
+                                        <span>
+                                            Subido por:
+                                            <strong>{{ documento.usuario ? documento.usuario.nombre + ' ' + documento.usuario.apellido : 'Usuario' }}</strong>
+                                            <span v-if="documento.usuario?.rol" class="rol-tag">({{ documento.usuario.rol }})</span>
+                                        </span>
+                                        <span class="sep">·</span>
+                                        <span>
+                                            Fecha y hora: {{ formatDateTime(documento.created_at) }}
+                                        </span>
+                                    </div>
                                 </div>
-
                             </div>
 
-
                             <div class="documento-acciones">
-
                                 <!-- VER -->
-
                                 <a
                                     v-if="puedeDescargar"
                                     :href="`/documentos/${documento.id}/ver`"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     class="btn-ver"
+                                    title="Visualizar documento"
                                 >
-
                                     <Eye class="btn-ver__ico" />
-
                                     Ver
-
                                 </a>
 
-
                                 <!-- DESCARGAR -->
-
                                 <button
                                     v-if="puedeDescargar"
                                     type="button"
                                     class="btn-descargar"
+                                    title="Descargar documento"
                                     @click="descargarDocumento(documento)"
                                 >
-
                                     <Download class="btn-descargar__ico" />
-
                                     Descargar
-
                                 </button>
 
-
                                 <!-- ELIMINAR -->
-
                                 <button
                                     v-if="puedeEliminar"
                                     type="button"
                                     class="btn-eliminar"
+                                    title="Eliminar documento"
                                     @click="eliminarDocumento(documento)"
                                 >
-
                                     <Trash2 class="btn-eliminar__ico" />
-
                                     Eliminar
-
                                 </button>
-
                             </div>
-
                         </div>
-
                     </div>
-
 
                     <div
                         v-else
                         class="sin-documentos"
                     >
-
                         <FileText />
-
                         <span>
                             No hay documentos vinculados a este expediente.
                         </span>
-
                     </div>
 
                 </div>
@@ -928,6 +982,34 @@ const eliminarDocumento = (documento) => {
     font-size: 12px;
 }
 
+.alerta--exito {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.alerta-cuerpo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.alerta-cerrar {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #15803D;
+    display: flex;
+    align-items: center;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background .15s;
+}
+
+.alerta-cerrar:hover {
+    background: rgba(21, 128, 61, 0.1);
+}
+
 .alerta svg {
     width: 17px;
 }
@@ -1067,6 +1149,61 @@ const eliminarDocumento = (documento) => {
 
 /* SUBIR DOCUMENTO */
 
+.alerta-no-asignado {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 18px 20px 0;
+    padding: 12px 14px;
+    background: #FFFBEB;
+    border: 1px solid #FDE68A;
+    border-left: 4px solid #D97706;
+    border-radius: 8px;
+    color: #92400E;
+    font-size: 12px;
+}
+
+.alerta-no-asignado__ico {
+    width: 18px;
+    height: 18px;
+    color: #D97706;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+
+.alerta-no-asignado strong {
+    font-size: 12px;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 2px;
+}
+
+.alerta-no-asignado p {
+    margin: 0;
+    font-size: 11px;
+    color: #B45309;
+}
+
+.alerta-error {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    margin-bottom: 12px;
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-left: 4px solid #EF4444;
+    border-radius: 6px;
+    color: #B91C1C;
+    font-size: 11px;
+}
+
+.alerta-error__ico {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+
 .subir-documento {
     margin: 18px 20px;
     padding: 16px;
@@ -1146,6 +1283,48 @@ const eliminarDocumento = (documento) => {
     height: 14px;
 }
 
+.btn-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.archivo-seleccionado {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 6px 10px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: 6px;
+    font-size: 11px;
+    color: #1E40AF;
+}
+
+.archivo-seleccionado__ico {
+    width: 14px;
+    height: 14px;
+    color: #2563EB;
+    flex-shrink: 0;
+}
+
+.archivo-seleccionado__nom {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.archivo-seleccionado__peso {
+    color: #64748B;
+    font-size: 10px;
+    white-space: nowrap;
+}
+
 
 /* DOCUMENTOS */
 
@@ -1206,6 +1385,57 @@ const eliminarDocumento = (documento) => {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.documento-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: #64748B;
+    margin-top: 1px;
+    flex-wrap: wrap;
+}
+
+.documento-autor {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    color: #64748B;
+    margin-top: 2px;
+    flex-wrap: wrap;
+}
+
+.sep {
+    color: #CBD5E1;
+}
+
+.badge-sha {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    background: #ECFDF5;
+    color: #047857;
+    border: 1px solid #A7F3D0;
+    border-radius: 12px;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: .02em;
+}
+
+.badge-sha__ico {
+    width: 12px;
+    height: 12px;
+    color: #059669;
+}
+
+.rol-tag {
+    font-size: 9px;
+    text-transform: capitalize;
+    color: #64748B;
+    margin-left: 2px;
 }
 
 .documento-datos span {
