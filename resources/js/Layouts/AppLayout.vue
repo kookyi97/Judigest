@@ -11,7 +11,8 @@ import {
   Users,
   ChevronDown,
   User,
-  LogOut 
+  LogOut,
+  Settings
 } from 'lucide-vue-next';
 
 const { props } = usePage();
@@ -39,6 +40,7 @@ const menuItems = computed(() => {
         { label: 'Audiencias', href: '/audiencias', icon: Scale, roles: ['administrador','secretario','asesor'] },
         { label: 'Auditoría', href: '/auditoria', icon: ShieldAlert, roles: ['administrador'] },
         { label: 'Usuarios', href: '/usuarios', icon: Users, roles: ['administrador'] },
+        { label: 'Configuración', href: '/configuracion', icon: Settings, roles: ['administrador'] },
     ];
     return items.filter(i => i.roles.includes(rol));
 });

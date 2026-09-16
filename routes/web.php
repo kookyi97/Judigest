@@ -4,6 +4,9 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\ExpedienteController;
+use App\Http\Controllers\ConfiguracionController;
+use App\Http\Controllers\AuditoriaController;
+use App\Services\AuditoriaService;
 use App\Models\Usuario;
 use App\Models\Expediente;
 use Inertia\Inertia;
@@ -64,6 +67,8 @@ Route::middleware('auth')->group(function () {
                 unset($r);
             }
 
+            $auditoriaService = app(AuditoriaService::class);
+
             return Inertia::render('AdminDashboard', [
                 'usuarios' => $usuarios,
                 'rolesDisponibles' => [
@@ -76,9 +81,10 @@ Route::middleware('auth')->group(function () {
                     'expedientesActivos' => $expedientesActivos,
                     'usuariosActivos' => $usuarios->where('activo', true)->count(),
                     'audienciasEsteMes' => 0,
-                    'accionesHoy' => 0
+                    'accionesHoy' => $auditoriaService->totalAccionesHoy()
                 ],
-                'usuariosPorRol' => $usuariosPorRol
+                'usuariosPorRol' => $usuariosPorRol,
+                'ultimasActividades' => $auditoriaService->ultimasActividades(6)
             ]);
         }
 
@@ -175,6 +181,27 @@ Route::middleware('auth')->group(function () {
         [UsuarioController::class, 'resetPassword']
     )
         ->name('admin.usuarios.resetPassword')
+        ->middleware('rol:administrador');
+
+    Route::get(
+        '/configuracion',
+        [ConfiguracionController::class, 'index']
+    )
+        ->name('configuracion.index')
+        ->middleware('rol:administrador');
+
+    Route::put(
+        '/configuracion',
+        [ConfiguracionController::class, 'update']
+    )
+        ->name('configuracion.update')
+        ->middleware('rol:administrador');
+
+    Route::get(
+        '/auditoria',
+        [AuditoriaController::class, 'index']
+    )
+        ->name('auditoria.index')
         ->middleware('rol:administrador');
 
     Route::get(

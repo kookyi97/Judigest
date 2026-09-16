@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Services\HistorialExpedienteService;
+use App\Services\ConfiguracionService;
 
 class ExpedienteController extends Controller
 {
@@ -135,8 +136,9 @@ class ExpedienteController extends Controller
             'estado' => 'nullable|in:Abierto,En Proceso,Resuelto,Cerrado,Archivado',
         ]);
 
+        $prefijo = app(ConfiguracionService::class)->get('expedientes_prefijo', 'EXP');
         $añoActual = date('Y');
-        $ultimoExpediente = Expediente::where('numero_expediente', 'like', "EXP-{$añoActual}-%")
+        $ultimoExpediente = Expediente::where('numero_expediente', 'like', "{$prefijo}-{$añoActual}-%")
             ->orderBy('id', 'desc')
             ->first();
 
@@ -147,7 +149,7 @@ class ExpedienteController extends Controller
             $nuevoNumero = 1;
         }
 
-        $data['numero_expediente'] = sprintf("EXP-%s-%04d", $añoActual, $nuevoNumero);
+        $data['numero_expediente'] = sprintf("%s-%s-%04d", $prefijo, $añoActual, $nuevoNumero);
 
         abort_unless(
             Usuario::where('id', $data['asesor_id'])
@@ -454,20 +456,25 @@ class ExpedienteController extends Controller
         $this->autorizarExpediente($expediente);
 
         /*
-         * Validación del archivo.
+         * Validación del archivo con parámetros dinámicos del sistema.
          */
+        $maxMb = (int) app(ConfiguracionService::class)->get('documentos_max_tamano_mb', 10);
+        $maxKb = $maxMb * 1024;
+        $formatos = app(ConfiguracionService::class)->get('documentos_formatos_permitidos', 'pdf,doc,docx,xls,xlsx,png,jpg,jpeg');
+        $mimesClean = implode(',', array_map('trim', explode(',', $formatos)));
+
         $request->validate([
             'documento' => [
                 'required',
                 'file',
-                'max:10240',
-                'mimes:pdf,doc,docx,xls,xlsx,png,jpg,jpeg',
+                "max:{$maxKb}",
+                "mimes:{$mimesClean}",
             ],
         ], [
             'documento.required' => 'Debe seleccionar un documento.',
             'documento.file' => 'El archivo seleccionado no es válido.',
-            'documento.max' => 'El documento no puede superar el tamaño máximo permitido de 10 MB.',
-            'documento.mimes' => 'Formato no permitido. Solo se permiten documentos PDF, DOC, DOCX, XLS, XLSX, PNG, JPG y JPEG.',
+            'documento.max' => "El documento no puede superar el tamaño máximo permitido de {$maxMb} MB.",
+            'documento.mimes' => "Formato no permitido. Solo se permiten documentos: {$formatos}.",
         ]);
 
         $archivo = $request->file('documento');
