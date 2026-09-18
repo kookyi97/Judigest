@@ -196,7 +196,7 @@ const guardarNuevaContrasena = () => {
         
         <div class="form-group" style="margin-bottom: 20px;">
           <label style="display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px;">Nueva Contraseña</label>
-          <input type="text" v-model="nuevaContrasenaManual" class="input-form" placeholder="Escribe la nueva contraseña..." />
+          <input type="password" v-model="nuevaContrasenaManual" class="input-form" placeholder="••••••••" autocomplete="new-password" @keydown.enter="guardarNuevaContrasena" />
           <p v-if="errorContrasena" style="color: #EF4444; font-size: 12px; margin-top: 6px; margin-bottom: 0;">{{ errorContrasena }}</p>
         </div>
 

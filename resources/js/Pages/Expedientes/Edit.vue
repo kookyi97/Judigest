@@ -153,6 +153,7 @@ const formatearTamano = (tamano) => {
                     <form
                         class="formulario"
                         @submit.prevent="submit"
+                        @keydown.enter="$event.target.tagName !== 'TEXTAREA' && $event.preventDefault()"
                         novalidate
                     >
 
@@ -590,6 +591,7 @@ const formatearTamano = (tamano) => {
                             <Link
                                 href="/expedientes"
                                 class="btn-sec"
+                                @click="form.reset()"
                             >
                                 <X class="btn-sec__ico" />
                                 Cancelar
