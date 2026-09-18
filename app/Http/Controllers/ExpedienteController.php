@@ -13,14 +13,19 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use App\Services\HistorialExpedienteService;
 use App\Services\ConfiguracionService;
+use App\Services\AuditoriaService;
 
 class ExpedienteController extends Controller
 {
     protected HistorialExpedienteService $historialService;
+    protected AuditoriaService $auditoriaService;
 
-    public function __construct(HistorialExpedienteService $historialService)
-    {
+    public function __construct(
+        HistorialExpedienteService $historialService,
+        AuditoriaService $auditoriaService
+    ) {
         $this->historialService = $historialService;
+        $this->auditoriaService = $auditoriaService;
     }
 
     private function usuarioAutenticado()
@@ -273,12 +278,72 @@ class ExpedienteController extends Controller
             );
         }
 
-        $camposModificados = [];
+        $nombresCampos = [
+            'numero_expediente' => 'Número de Expediente',
+            'cliente' => 'Cliente',
+            'tipo_proceso' => 'Tipo de Proceso',
+            'asesor_id' => 'Asesor Responsable',
+            'practicante_id' => 'Practicante Asignado',
+            'fecha_ingreso' => 'Fecha de Ingreso',
+            'estado' => 'Estado',
+            'descripcion' => 'Descripción',
+        ];
 
-        foreach ($data as $campo => $valor) {
-            if ($expediente->getAttribute($campo) != $valor) {
-                $camposModificados[] = $campo;
+        $camposModificados = [];
+        $detallesCambios = [];
+        $frasesCambios = [];
+
+        foreach ($data as $campo => $valorNuevo) {
+            $valorAnterior = $expediente->getAttribute($campo);
+
+            $ant = is_string($valorAnterior) ? trim($valorAnterior) : $valorAnterior;
+            $nue = is_string($valorNuevo) ? trim($valorNuevo) : $valorNuevo;
+
+            if ($campo === 'fecha_ingreso') {
+                $ant = $ant ? substr((string)$ant, 0, 10) : '';
+                $nue = $nue ? substr((string)$nue, 0, 10) : '';
             }
+
+            if ((string)$ant !== (string)$nue) {
+                $camposModificados[] = $campo;
+
+                if ($campo === 'asesor_id') {
+                    $asesorAnt = $valorAnterior ? Usuario::find($valorAnterior) : null;
+                    $asesorNue = $valorNuevo ? Usuario::find($valorNuevo) : null;
+                    $valAntStr = $asesorAnt ? "{$asesorAnt->nombre} {$asesorAnt->apellido}" : 'Sin asignar';
+                    $valNueStr = $asesorNue ? "{$asesorNue->nombre} {$asesorNue->apellido}" : 'Sin asignar';
+                } elseif ($campo === 'practicante_id') {
+                    $pracAnt = $valorAnterior ? Usuario::find($valorAnterior) : null;
+                    $pracNue = $valorNuevo ? Usuario::find($valorNuevo) : null;
+                    $valAntStr = $pracAnt ? "{$pracAnt->nombre} {$pracAnt->apellido}" : 'Sin asignar';
+                    $valNueStr = $pracNue ? "{$pracNue->nombre} {$pracNue->apellido}" : 'Sin asignar';
+                } elseif ($campo === 'descripcion') {
+                    $valAntStr = $valorAnterior ? (mb_strlen($valorAnterior) > 40 ? mb_substr($valorAnterior, 0, 37) . '...' : $valorAnterior) : '(vacío)';
+                    $valNueStr = $valorNuevo ? (mb_strlen($valorNuevo) > 40 ? mb_substr($valorNuevo, 0, 37) . '...' : $valorNuevo) : '(vacío)';
+                } else {
+                    $valAntStr = $valorAnterior !== null && $valorAnterior !== '' ? (string)$valorAnterior : '(vacío)';
+                    $valNueStr = $valorNuevo !== null && $valorNuevo !== '' ? (string)$valorNuevo : '(vacío)';
+                }
+
+                $nombreLegible = $nombresCampos[$campo] ?? ucfirst(str_replace('_', ' ', $campo));
+
+                $detallesCambios[$campo] = [
+                    'campo' => $nombreLegible,
+                    'antes' => $valAntStr,
+                    'despues' => $valNueStr,
+                ];
+
+                $frasesCambios[] = "{$nombreLegible} ('{$valAntStr}' ➔ '{$valNueStr}')";
+            }
+        }
+
+        $usuarioAutenticado = Auth::user();
+        $usuarioNombre = $usuarioAutenticado ? "{$usuarioAutenticado->nombre} {$usuarioAutenticado->apellido}" : 'El usuario';
+
+        if (!empty($frasesCambios)) {
+            $descripcionAuditoria = "El usuario {$usuarioNombre} modificó el expediente {$expediente->numero_expediente}: " . implode(', ', $frasesCambios) . ".";
+        } else {
+            $descripcionAuditoria = "El usuario {$usuarioNombre} guardó el expediente {$expediente->numero_expediente} sin modificaciones de datos.";
         }
 
         $data['modificado_por'] = Auth::id();
@@ -286,7 +351,8 @@ class ExpedienteController extends Controller
         DB::transaction(function () use (
             $expediente,
             $data,
-            $camposModificados
+            $camposModificados,
+            $detallesCambios
         ) {
             $expediente->update($data);
 
@@ -296,9 +362,33 @@ class ExpedienteController extends Controller
                 'Se actualizaron los datos del expediente.',
                 [
                     'campos' => $camposModificados,
+                    'modificaciones' => $detallesCambios,
                 ]
             );
         });
+
+        // Registrar en la Bitácora de Auditoría Inmutable con todos los detalles
+        $this->auditoriaService->registrar(
+            modulo: 'Expedientes',
+            accion: 'Actualizar Expediente',
+            descripcion: $descripcionAuditoria,
+            entidadTipo: Expediente::class,
+            entidadId: $expediente->id,
+            detalles: [
+                'metodo' => $request->method(),
+                'ruta' => $request->route() ? $request->route()->getName() : 'expedientes.update',
+                'uri' => $request->path(),
+                'expediente_id' => $expediente->id,
+                'numero_expediente' => $expediente->numero_expediente,
+                'modificaciones' => $detallesCambios,
+            ],
+            resultado: 'exitoso',
+            request: $request,
+            usuario: $usuarioAutenticado
+        );
+
+        // Evitar que el middleware registre el log genérico duplicado
+        $request->attributes->set('auditoria_registrada', true);
 
         return redirect()
             ->route('expedientes.index')
@@ -347,6 +437,31 @@ class ExpedienteController extends Controller
             );
         });
 
+        $usuarioAutenticado = Auth::user();
+        $usuarioNombre = $usuarioAutenticado ? "{$usuarioAutenticado->nombre} {$usuarioAutenticado->apellido}" : 'El usuario';
+
+        $this->auditoriaService->registrar(
+            modulo: 'Expedientes',
+            accion: 'Cambiar Estado de Expediente',
+            descripcion: "El usuario {$usuarioNombre} cambió el estado del expediente {$expediente->numero_expediente} de '{$estadoAnterior}' a '{$data['estado']}'.",
+            entidadTipo: Expediente::class,
+            entidadId: $expediente->id,
+            detalles: [
+                'metodo' => $request->method(),
+                'ruta' => $request->route() ? $request->route()->getName() : 'expedientes.estado',
+                'uri' => $request->path(),
+                'expediente_id' => $expediente->id,
+                'numero_expediente' => $expediente->numero_expediente,
+                'estado_anterior' => $estadoAnterior,
+                'nuevo_estado' => $data['estado'],
+            ],
+            resultado: 'exitoso',
+            request: $request,
+            usuario: $usuarioAutenticado
+        );
+
+        $request->attributes->set('auditoria_registrada', true);
+
         return back()->with(
             'exito',
             'El estado del expediente fue actualizado correctamente.'
@@ -389,6 +504,31 @@ class ExpedienteController extends Controller
                 ]
             );
         });
+
+        $usuarioAutenticado = Auth::user();
+        $usuarioNombre = $usuarioAutenticado ? "{$usuarioAutenticado->nombre} {$usuarioAutenticado->apellido}" : 'El usuario';
+
+        $this->auditoriaService->registrar(
+            modulo: 'Expedientes',
+            accion: 'Archivar Expediente',
+            descripcion: "El usuario {$usuarioNombre} archivó el expediente {$expediente->numero_expediente} (estado previo: '{$estadoAnterior}').",
+            entidadTipo: Expediente::class,
+            entidadId: $expediente->id,
+            detalles: [
+                'metodo' => $request->method(),
+                'ruta' => $request->route() ? $request->route()->getName() : 'expedientes.archivar',
+                'uri' => $request->path(),
+                'expediente_id' => $expediente->id,
+                'numero_expediente' => $expediente->numero_expediente,
+                'estado_anterior' => $estadoAnterior,
+                'estado_nuevo' => 'Archivado',
+            ],
+            resultado: 'exitoso',
+            request: $request,
+            usuario: $usuarioAutenticado
+        );
+
+        $request->attributes->set('auditoria_registrada', true);
 
         return back()->with(
             'exito',
@@ -826,6 +966,28 @@ class ExpedienteController extends Controller
                 $datos
             );
         });
+
+        $this->auditoriaService->registrar(
+            modulo: 'Documentos',
+            accion: 'Eliminar Documento',
+            descripcion: "El usuario {$usuario->nombre} {$usuario->apellido} eliminó el documento '{$documento->nombre_original}' del expediente {$expediente->numero_expediente}.",
+            entidadTipo: Documento::class,
+            entidadId: $documento->id,
+            detalles: [
+                'metodo' => 'DELETE',
+                'documento_id' => $documento->id,
+                'nombre_original' => $documento->nombre_original,
+                'expediente_id' => $expediente->id,
+                'numero_expediente' => $expediente->numero_expediente,
+                'tamano_bytes' => $documento->tamano,
+                'hash_sha256' => $documento->hash_sha256,
+            ],
+            resultado: 'exitoso',
+            request: request(),
+            usuario: $usuario
+        );
+
+        request()->attributes->set('auditoria_registrada', true);
 
         return back()->with(
             'exito',

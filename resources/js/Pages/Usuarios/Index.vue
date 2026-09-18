@@ -97,6 +97,21 @@ const guardarNuevaContrasena = () => {
     }
   });
 };
+
+const confirmarEliminarUsuario = (usuario) => {
+  if (confirm(`¿Estás seguro de que deseas eliminar al usuario "${usuario.nombre} ${usuario.apellido}"? Esta acción no se puede deshacer y quedará registrada en la bitácora de auditoría.`)) {
+    router.delete(`/usuarios/${usuario.id}`, {
+      preserveScroll: true,
+      onSuccess: () => {
+        mostrarNotificacion('¡Usuario Eliminado!', 'El usuario ha sido eliminado exitosamente.', 'exito');
+      },
+      onError: (errors) => {
+        const primerError = Object.values(errors)[0] || 'Ocurrió un error al intentar eliminar el usuario.';
+        mostrarNotificacion('Error', primerError, 'error');
+      }
+    });
+  }
+};
 </script>
 
 <template>
@@ -170,6 +185,14 @@ const guardarNuevaContrasena = () => {
                     <Link :href="`/usuarios/${usuario.id}/edit`" class="action-btn action-edit" title="Editar">
                       <Edit class="action-ico" />
                     </Link>
+                    <button 
+                      v-if="page.props.auth.usuario && page.props.auth.usuario.id !== usuario.id" 
+                      @click="confirmarEliminarUsuario(usuario)" 
+                      class="action-btn action-delete" 
+                      title="Eliminar Usuario"
+                    >
+                      <Trash2 class="action-ico" />
+                    </button>
                   </div>
                 </td>
               </tr>
@@ -276,6 +299,7 @@ const guardarNuevaContrasena = () => {
 .action-btn:hover { background: #F8FAFC; color: #1E293B; }
 .action-edit:hover { color: #185FA5; border-color: #185FA5; background: #EFF6FF; }
 .action-key:hover { color: #D97706; border-color: #D97706; background: #FEF3C7; }
+.action-delete:hover { color: #EF4444; border-color: #EF4444; background: #FEE2E2; }
 .action-ico { width: 16px; height: 16px; }
 
 /* ── Empty State ── */

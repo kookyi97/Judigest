@@ -55,6 +55,7 @@ class AuditoriaController extends Controller
         }
 
         $auditorias = $query->orderBy('fecha_hora', 'desc')
+            ->orderBy('id', 'desc')
             ->paginate(20)
             ->withQueryString()
             ->through(function ($item) {

@@ -97,9 +97,45 @@ class UsuarioController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(string $id)
+    public function destroy(Usuario $usuario)
     {
-        //
+        abort_if(
+            \Illuminate\Support\Facades\Auth::id() === $usuario->id,
+            403,
+            'No puedes eliminar tu propia cuenta de usuario.'
+        );
+
+        $usuarioNombre = "{$usuario->nombre} {$usuario->apellido} (@{$usuario->nombre_usuario})";
+        $rol = $usuario->rol;
+        $id = $usuario->id;
+        $admin = \Illuminate\Support\Facades\Auth::user();
+        $adminNombre = $admin ? "{$admin->nombre} {$admin->apellido}" : 'El administrador';
+
+        $usuario->delete();
+
+        // Registrar en Auditoría con todos los detalles
+        app(\App\Services\AuditoriaService::class)->registrar(
+            modulo: 'Usuarios',
+            accion: 'Eliminar Usuario',
+            descripcion: "El usuario {$adminNombre} eliminó la cuenta del usuario {$usuarioNombre} con rol {$rol}.",
+            entidadTipo: Usuario::class,
+            entidadId: $id,
+            detalles: [
+                'metodo' => 'DELETE',
+                'usuario_eliminado_id' => $id,
+                'nombre_completo' => "{$usuario->nombre} {$usuario->apellido}",
+                'nombre_usuario' => $usuario->nombre_usuario,
+                'correo' => $usuario->correo,
+                'rol' => $rol,
+            ],
+            resultado: 'exitoso',
+            request: request(),
+            usuario: $admin
+        );
+
+        request()->attributes->set('auditoria_registrada', true);
+
+        return redirect()->route('usuarios.index')->with('exito', 'Usuario eliminado correctamente.');
     }
 
     /**
