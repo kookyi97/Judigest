@@ -76,6 +76,20 @@ class LoginController extends Controller
                 'bloqueado_hasta'   => $bloqueo,
             ]);
 
+            app(\App\Services\AuditoriaService::class)->registrar(
+                modulo: 'Autenticación',
+                accion: $accion === 'bloqueado' ? 'Bloqueo de Cuenta por Intentos Fallidos' : 'Intento Fallido de Inicio de Sesión',
+                descripcion: "Intento fallido de inicio de sesión para {$usuario->nombre} {$usuario->apellido} ({$request->correo}). Intento {$intentos} de " . self::MAX_INTENTOS . ".",
+                detalles: [
+                    'correo' => $request->correo,
+                    'intentos' => $intentos,
+                    'bloqueado' => (bool) $bloqueo,
+                ],
+                resultado: 'fallido',
+                request: $request,
+                usuario: $usuario
+            );
+
             if ($bloqueo) {
                 return back()->withErrors([
                     'correo' => 'Demasiados intentos. Cuenta bloqueada por 15 minutos.'
@@ -87,6 +101,16 @@ class LoginController extends Controller
                 'correo' => "Credenciales incorrectas. Te quedan {$restantes} intento(s)."
             ]);
         }
+
+        app(\App\Services\AuditoriaService::class)->registrar(
+            modulo: 'Autenticación',
+            accion: 'Intento Fallido de Inicio de Sesión',
+            descripcion: "Intento de inicio de sesión con correo no registrado: {$request->correo}.",
+            detalles: ['correo' => $request->correo],
+            resultado: 'fallido',
+            request: $request,
+            usuario: null
+        );
 
         return back()->withErrors(['correo' => 'Correo o contraseña incorrectos.']);
     }

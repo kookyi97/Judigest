@@ -32,6 +32,11 @@ class AuditoriaController extends Controller
             $query->usuario($usuarioId);
         }
 
+        // Filtro por tipo de acción
+        if ($accion = $request->input('accion')) {
+            $query->accion($accion);
+        }
+
         // Filtro por resultado
         if ($resultado = $request->input('resultado')) {
             $query->resultado($resultado);
@@ -54,8 +59,13 @@ class AuditoriaController extends Controller
             $query->whereDate('fecha_hora', '<=', $hasta);
         }
 
-        $auditorias = $query->orderBy('fecha_hora', 'desc')
-            ->orderBy('id', 'desc')
+        // Orden cronológico (asc: más antiguos primero, desc: más recientes primero)
+        $orden = in_array(strtolower((string) $request->input('orden', 'desc')), ['asc', 'desc'], true)
+            ? strtolower((string) $request->input('orden', 'desc'))
+            : 'desc';
+
+        $auditorias = $query->orderBy('fecha_hora', $orden)
+            ->orderBy('id', $orden)
             ->paginate(20)
             ->withQueryString()
             ->through(function ($item) {
@@ -74,6 +84,7 @@ class AuditoriaController extends Controller
                     ],
                     'modulo' => $item->modulo,
                     'accion' => $item->accion,
+                    'tipo_accion' => $item->accion,
                     'descripcion' => $item->descripcion,
                     'entidad_tipo' => $item->entidad_tipo,
                     'entidad_id' => $item->entidad_id,
@@ -82,11 +93,18 @@ class AuditoriaController extends Controller
                     'user_agent' => $item->user_agent,
                     'resultado' => $item->resultado,
                     'fecha_hora' => $item->fecha_hora ? $item->fecha_hora->format('d/m/Y H:i:s') : 'N/A',
+                    'fecha' => $item->fecha_hora ? $item->fecha_hora->format('d/m/Y') : 'N/A',
+                    'hora' => $item->fecha_hora ? $item->fecha_hora->format('H:i:s') : 'N/A',
                     'hace_tiempo' => $item->fecha_hora ? $item->fecha_hora->diffForHumans() : 'N/A',
                 ];
             });
 
         // Metadatos para filtros
+        $accionesDisponibles = Auditoria::distinct()
+            ->whereNotNull('accion')
+            ->orderBy('accion')
+            ->pluck('accion');
+
         $modulosDisponibles = Auditoria::distinct()
             ->whereNotNull('modulo')
             ->orderBy('modulo')
@@ -110,7 +128,11 @@ class AuditoriaController extends Controller
 
         return Inertia::render('Auditoria/Index', [
             'auditorias' => $auditorias,
-            'filtros' => $request->only(['buscar', 'modulo', 'usuario_id', 'resultado', 'periodo', 'desde', 'hasta']),
+            'filtros' => array_merge(
+                $request->only(['buscar', 'modulo', 'accion', 'usuario_id', 'resultado', 'periodo', 'desde', 'hasta']),
+                ['orden' => $orden]
+            ),
+            'accionesDisponibles' => $accionesDisponibles,
             'modulosDisponibles' => $modulosDisponibles,
             'usuariosDisponibles' => $usuariosDisponibles,
             'estadisticas' => $estadisticas,

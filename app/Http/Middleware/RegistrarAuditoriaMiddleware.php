@@ -21,17 +21,18 @@ class RegistrarAuditoriaMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
+        $usuarioAntes = $request->user();
         $response = $next($request);
+        $usuario = $request->user() ?? $usuarioAntes;
 
-        // Solo registramos si el usuario está autenticado y la petición modifica estado (POST, PUT, PATCH, DELETE)
-        if ($request->user() && in_array($request->method(), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        // Solo registramos si hay usuario autenticado (antes o después del ciclo) y la petición modifica estado
+        if ($usuario && in_array($request->method(), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
             // Evitamos doble registro si la acción ya fue auditada explícitamente en el ciclo
             if ($request->attributes->get('auditoria_registrada')) {
                 return $response;
             }
 
-            // Si la petición tuvo errores de validación de formulario (ej. campos vacíos o contraseñas no coincidentes),
-            // la acción NO se ejecutó en el sistema (el controlador abortó antes de crear/modificar registros).
+            // Si la petición tuvo errores de validación de formulario, la acción no se ejecutó en el sistema
             $tieneErroresValidacion = ($request->hasSession() && $request->session()->has('errors')) || $response->getStatusCode() === 422;
             if ($tieneErroresValidacion) {
                 return $response;
@@ -40,7 +41,22 @@ class RegistrarAuditoriaMiddleware
             $ruta = $request->route() ? $request->route()->getName() : null;
             $uri = $request->path();
 
-            [$modulo, $accion, $descripcion] = $this->deducirDetallesAccion($request, $ruta, $uri);
+            [$modulo, $accion, $descripcion] = $this->deducirDetallesAccion($request, $ruta, $uri, $usuario);
+
+            // Deducir entidad y su ID si están presentes en la ruta
+            $entidadTipo = null;
+            $entidadId = null;
+
+            if ($exp = $request->route('expediente')) {
+                $entidadTipo = 'Expediente';
+                $entidadId = is_object($exp) ? $exp->id : (is_numeric($exp) ? (int) $exp : null);
+            } elseif ($usr = $request->route('usuario')) {
+                $entidadTipo = 'Usuario';
+                $entidadId = is_object($usr) ? $usr->id : (is_numeric($usr) ? (int) $usr : null);
+            } elseif ($doc = $request->route('documento')) {
+                $entidadTipo = 'Documento';
+                $entidadId = is_object($doc) ? $doc->id : (is_numeric($doc) ? (int) $doc : null);
+            }
 
             $resultado = $response->getStatusCode() < 400 ? 'exitoso' : 'fallido';
 
@@ -49,6 +65,8 @@ class RegistrarAuditoriaMiddleware
                 modulo: $modulo,
                 accion: $accion,
                 descripcion: $descripcion,
+                entidadTipo: $entidadTipo,
+                entidadId: $entidadId,
                 detalles: [
                     'metodo' => $request->method(),
                     'ruta' => $ruta,
@@ -57,7 +75,7 @@ class RegistrarAuditoriaMiddleware
                 ],
                 resultado: $resultado,
                 request: $request,
-                usuario: $request->user()
+                usuario: $usuario
             );
         }
 
@@ -67,9 +85,10 @@ class RegistrarAuditoriaMiddleware
     /**
      * Infiere nombres legibles de módulo, acción y descripción a partir de la ruta ejecutada.
      */
-    protected function deducirDetallesAccion(Request $request, ?string $ruta, string $uri): array
+    protected function deducirDetallesAccion(Request $request, ?string $ruta, string $uri, ?\App\Models\Usuario $usuario = null): array
     {
-        $usuarioNombre = "{$request->user()->nombre} {$request->user()->apellido}";
+        $u = $usuario ?? $request->user();
+        $usuarioNombre = $u ? "{$u->nombre} {$u->apellido}" : 'Usuario';
 
         $mapaRutas = [
             'login.procesar' => ['Autenticación', 'Inicio de Sesión', "El usuario {$usuarioNombre} inició sesión en la plataforma."],

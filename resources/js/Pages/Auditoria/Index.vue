@@ -24,7 +24,10 @@ import {
   Users,
   Sliders,
   Lock,
-  Globe
+  Globe,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -35,6 +38,10 @@ const props = defineProps({
   filtros: {
     type: Object,
     default: () => ({}),
+  },
+  accionesDisponibles: {
+    type: Array,
+    default: () => [],
   },
   modulosDisponibles: {
     type: Array,
@@ -53,11 +60,13 @@ const props = defineProps({
 // Estado reactivo de los filtros
 const buscar = ref(props.filtros.buscar || '');
 const moduloSeleccionado = ref(props.filtros.modulo || '');
+const accionSeleccionada = ref(props.filtros.accion || '');
 const usuarioSeleccionado = ref(props.filtros.usuario_id || '');
 const resultadoSeleccionado = ref(props.filtros.resultado || '');
 const periodoSeleccionado = ref(props.filtros.periodo || 'todos');
 const fechaDesde = ref(props.filtros.desde || '');
 const fechaHasta = ref(props.filtros.hasta || '');
+const ordenSeleccionado = ref(props.filtros.orden || 'desc');
 
 // Modal para inspeccionar detalles JSON
 const auditoriaDetalle = ref(null);
@@ -76,11 +85,13 @@ const aplicarFiltros = () => {
     {
       buscar: buscar.value || undefined,
       modulo: moduloSeleccionado.value || undefined,
+      accion: accionSeleccionada.value || undefined,
       usuario_id: usuarioSeleccionado.value || undefined,
       resultado: resultadoSeleccionado.value || undefined,
       periodo: periodoSeleccionado.value !== 'todos' ? periodoSeleccionado.value : undefined,
       desde: fechaDesde.value || undefined,
       hasta: fechaHasta.value || undefined,
+      orden: ordenSeleccionado.value !== 'desc' ? ordenSeleccionado.value : undefined,
     },
     {
       preserveState: true,
@@ -88,6 +99,12 @@ const aplicarFiltros = () => {
       replace: true,
     }
   );
+};
+
+// Alternar orden cronológico (descendente / ascendente)
+const alternarOrden = () => {
+  ordenSeleccionado.value = ordenSeleccionado.value === 'desc' ? 'asc' : 'desc';
+  aplicarFiltros();
 };
 
 // Búsqueda en vivo con debounce
@@ -102,11 +119,13 @@ watch(buscar, () => {
 const limpiarFiltros = () => {
   buscar.value = '';
   moduloSeleccionado.value = '';
+  accionSeleccionada.value = '';
   usuarioSeleccionado.value = '';
   resultadoSeleccionado.value = '';
   periodoSeleccionado.value = 'todos';
   fechaDesde.value = '';
   fechaHasta.value = '';
+  ordenSeleccionado.value = 'desc';
   router.get('/auditoria', {}, { preserveState: true, replace: true });
 };
 
@@ -136,7 +155,7 @@ const getModuloIcon = (modulo) => {
 
 <template>
   <AppLayout>
-    <Head title="Bitácora de Auditoría y Trazabilidad" />
+    <Head title="Bitácora de Auditoría y Registro Cronológico" />
 
     <div class="audit-page">
       <!-- Encabezado -->
@@ -146,9 +165,9 @@ const getModuloIcon = (modulo) => {
             <ShieldCheck class="w-3.5 h-3.5" />
             <span>Trazabilidad Inmutable del Sistema</span>
           </div>
-          <h1 class="audit-title">Bitácora de Auditoría y Acciones</h1>
+          <h1 class="audit-title">Registro Cronológico y Bitácora de Acciones</h1>
           <p class="audit-sub">
-            Registro cronológico inmutable de autoría: quién, cuándo y qué acción exacta se ejecutó en <strong>Judigest</strong>.
+            Monitoreo general y auditoría inmutable: consulte quién, cuándo y qué acción exacta se ejecutó en <strong>Judigest</strong>.
           </p>
         </div>
       </header>
@@ -195,7 +214,7 @@ const getModuloIcon = (modulo) => {
           <div>
             <p class="stat-card__label">Incidentes o Rechazos</p>
             <p class="stat-card__val">{{ estadisticas.fallidas }}</p>
-            <p class="stat-card__sub">validaciones / errores 4xx</p>
+            <p class="stat-card__sub">intentos fallidos / errores</p>
           </div>
         </div>
       </div>
@@ -203,7 +222,7 @@ const getModuloIcon = (modulo) => {
       <!-- Panel de Filtros -->
       <div class="filter-panel">
         <div class="filter-grid">
-          <!-- Búsqueda libre -->
+          <!-- Búsqueda rápida -->
           <div class="filter-group filter-group--search">
             <label class="filter-label">Búsqueda rápida</label>
             <div class="search-box">
@@ -217,18 +236,18 @@ const getModuloIcon = (modulo) => {
             </div>
           </div>
 
-          <!-- Módulo -->
+          <!-- Filtro por Tipo de Acción -->
           <div class="filter-group">
-            <label class="filter-label">Módulo Funcional</label>
-            <select v-model="moduloSeleccionado" @change="aplicarFiltros" class="filter-select">
-              <option value="">Todos los módulos</option>
-              <option v-for="m in modulosDisponibles" :key="m" :value="m">
-                {{ m }}
+            <label class="filter-label">Tipo de Acción</label>
+            <select v-model="accionSeleccionada" @change="aplicarFiltros" class="filter-select">
+              <option value="">Todas las acciones</option>
+              <option v-for="a in accionesDisponibles" :key="a" :value="a">
+                {{ a }}
               </option>
             </select>
           </div>
 
-          <!-- Usuario -->
+          <!-- Filtro por Usuario Responsable -->
           <div class="filter-group">
             <label class="filter-label">Usuario Responsable</label>
             <select v-model="usuarioSeleccionado" @change="aplicarFiltros" class="filter-select">
@@ -239,19 +258,32 @@ const getModuloIcon = (modulo) => {
             </select>
           </div>
 
-          <!-- Resultado -->
+          <!-- Filtro por Módulo -->
           <div class="filter-group">
-            <label class="filter-label">Resultado</label>
-            <select v-model="resultadoSeleccionado" @change="aplicarFiltros" class="filter-select">
-              <option value="">Todos los resultados</option>
-              <option value="exitoso">Solo Exitosos</option>
-              <option value="fallido">Solo Fallidos</option>
+            <label class="filter-label">Módulo</label>
+            <select v-model="moduloSeleccionado" @change="aplicarFiltros" class="filter-select">
+              <option value="">Todos los módulos</option>
+              <option v-for="m in modulosDisponibles" :key="m" :value="m">
+                {{ m }}
+              </option>
             </select>
           </div>
 
-          <!-- Período -->
+          <!-- Orden Cronológico -->
           <div class="filter-group">
-            <label class="filter-label">Período de tiempo</label>
+            <label class="filter-label">Orden Cronológico</label>
+            <select v-model="ordenSeleccionado" @change="aplicarFiltros" class="filter-select">
+              <option value="desc">Más recientes primero (Desc)</option>
+              <option value="asc">Más antiguos primero (Asc)</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Filtros secundarios de fechas y estado -->
+        <div class="filter-subgrid mt-3">
+          <!-- Período rápido -->
+          <div class="filter-group">
+            <label class="filter-label">Período</label>
             <select v-model="periodoSeleccionado" @change="aplicarFiltros" class="filter-select">
               <option value="todos">Cualquier momento</option>
               <option value="hoy">Hoy</option>
@@ -259,56 +291,114 @@ const getModuloIcon = (modulo) => {
               <option value="mes">Últimos 30 días</option>
             </select>
           </div>
-        </div>
 
-        <div class="filter-actions">
-          <button
-            type="button"
-            @click="limpiarFiltros"
-            class="btn-reset"
-            title="Limpiar filtros"
-          >
-            <RotateCcw class="w-3.5 h-3.5" />
-            <span>Restablecer Filtros</span>
-          </button>
+          <!-- Fecha Desde -->
+          <div class="filter-group">
+            <label class="filter-label">Fecha Desde</label>
+            <input
+              v-model="fechaDesde"
+              type="date"
+              @change="aplicarFiltros"
+              class="filter-date-input"
+            />
+          </div>
+
+          <!-- Fecha Hasta -->
+          <div class="filter-group">
+            <label class="filter-label">Fecha Hasta</label>
+            <input
+              v-model="fechaHasta"
+              type="date"
+              @change="aplicarFiltros"
+              class="filter-date-input"
+            />
+          </div>
+
+          <!-- Resultado -->
+          <div class="filter-group">
+            <label class="filter-label">Resultado</label>
+            <select v-model="resultadoSeleccionado" @change="aplicarFiltros" class="filter-select">
+              <option value="">Todos los estados</option>
+              <option value="exitoso">Solo Exitosos</option>
+              <option value="fallido">Solo Fallidos</option>
+            </select>
+          </div>
+
+          <div class="filter-group filter-group--btn-reset">
+            <button
+              type="button"
+              @click="limpiarFiltros"
+              class="btn-reset"
+              title="Restablecer filtros"
+            >
+              <RotateCcw class="w-3.5 h-3.5" />
+              <span>Limpiar Filtros</span>
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- Tabla de Auditoría Inmutable -->
+      <!-- Tabla de Registro Cronológico de Auditoría Inmutable -->
       <div class="table-card">
         <div class="table-card__header">
           <div class="flex items-center gap-2">
             <Activity class="w-4 h-4 text-blue-700" />
-            <h2 class="table-card__title">Registros de Trazabilidad</h2>
+            <h2 class="table-card__title">Registro Cronológico de Eventos</h2>
           </div>
-          <span class="text-xs text-slate-500">
-            Mostrando <strong>{{ auditorias.data.length }}</strong> de <strong>{{ auditorias.total }}</strong> acciones
-          </span>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-slate-500">
+              Mostrando <strong>{{ auditorias.from || 0 }} - {{ auditorias.to || 0 }}</strong> de <strong>{{ auditorias.total }}</strong> acciones registradas
+            </span>
+            <button
+              type="button"
+              @click="alternarOrden"
+              class="btn-sort-toggle"
+              :title="ordenSeleccionado === 'desc' ? 'Cambiar a más antiguos primero' : 'Cambiar a más recientes primero'"
+            >
+              <ArrowDown v-if="ordenSeleccionado === 'desc'" class="w-3.5 h-3.5 text-blue-700" />
+              <ArrowUp v-else class="w-3.5 h-3.5 text-blue-700" />
+              <span>{{ ordenSeleccionado === 'desc' ? 'Cronológico: Más recientes' : 'Cronológico: Más antiguos' }}</span>
+            </button>
+          </div>
         </div>
 
         <div class="table-responsive">
           <table v-if="auditorias.data.length > 0" class="audit-tbl">
             <thead>
               <tr>
-                <th>Fecha / Hora</th>
+                <th class="cursor-pointer hover:text-blue-700 select-none" @click="alternarOrden">
+                  <div class="flex items-center gap-1">
+                    <span>Fecha</span>
+                    <ArrowDown v-if="ordenSeleccionado === 'desc'" class="w-3 h-3 text-blue-700 inline" />
+                    <ArrowUp v-else class="w-3 h-3 text-blue-700 inline" />
+                  </div>
+                </th>
+                <th>Hora</th>
                 <th>Usuario Responsable</th>
+                <th>Tipo de Acción</th>
+                <th>Descripción de la Acción</th>
                 <th>Módulo</th>
-                <th>Acción</th>
-                <th>Descripción de la Operación</th>
                 <th>Dirección IP</th>
-                <th>Estado</th>
-                <th class="text-right">Detalle</th>
+                <th>Resultado</th>
+                <th class="text-right">Detalles</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="item in auditorias.data" :key="item.id" class="audit-tbl__row">
-                <!-- Fecha y hora del servidor -->
-                <td class="audit-tbl__time">
-                  <div class="font-semibold text-slate-800">{{ item.fecha_hora }}</div>
+                <!-- Fecha -->
+                <td class="audit-tbl__date">
+                  <div class="font-semibold text-slate-800">{{ item.fecha }}</div>
                   <div class="text-xs text-slate-400">{{ item.hace_tiempo }}</div>
                 </td>
 
-                <!-- Usuario autenticado identificado por el servidor -->
+                <!-- Hora -->
+                <td class="audit-tbl__time">
+                  <span class="font-mono text-xs bg-slate-100 text-slate-700 px-2 py-1 rounded">
+                    {{ item.hora }}
+                  </span>
+                </td>
+
+                <!-- Usuario Responsable -->
                 <td>
                   <div class="user-cell">
                     <div class="user-cell__avatar">
@@ -328,15 +418,7 @@ const getModuloIcon = (modulo) => {
                   </div>
                 </td>
 
-                <!-- Módulo -->
-                <td>
-                  <span class="badge" :class="getModuloBadge(item.modulo)">
-                    <component :is="getModuloIcon(item.modulo)" class="w-3 h-3 inline-block mr-1" />
-                    {{ item.modulo }}
-                  </span>
-                </td>
-
-                <!-- Acción -->
+                <!-- Tipo de Acción -->
                 <td>
                   <div class="font-bold text-slate-800 text-sm">
                     {{ item.accion }}
@@ -346,14 +428,22 @@ const getModuloIcon = (modulo) => {
                   </div>
                 </td>
 
-                <!-- Descripción -->
+                <!-- Descripción de la Acción -->
                 <td class="audit-tbl__desc">
-                  <p class="text-sm text-slate-700 line-clamp-2">
+                  <p class="text-sm text-slate-700 line-clamp-2" :title="item.descripcion">
                     {{ item.descripcion }}
                   </p>
                 </td>
 
-                <!-- IP y User Agent -->
+                <!-- Módulo -->
+                <td>
+                  <span class="badge" :class="getModuloBadge(item.modulo)">
+                    <component :is="getModuloIcon(item.modulo)" class="w-3 h-3 inline-block mr-1" />
+                    {{ item.modulo }}
+                  </span>
+                </td>
+
+                <!-- Dirección IP -->
                 <td>
                   <div class="font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded w-fit">
                     {{ item.ip_address }}
@@ -378,7 +468,7 @@ const getModuloIcon = (modulo) => {
                     type="button"
                     @click="abrirDetalle(item)"
                     class="btn-inspect"
-                    title="Ver registro técnico inmutable"
+                    title="Visualizar detalles completos de la acción registrada"
                   >
                     <Eye class="w-3.5 h-3.5" />
                     <span>Ver</span>
@@ -391,12 +481,12 @@ const getModuloIcon = (modulo) => {
           <!-- Estado Vacío -->
           <div v-else class="empty-state">
             <ShieldAlert class="empty-state__icon" />
-            <h3 class="empty-state__title">No se encontraron registros</h3>
+            <h3 class="empty-state__title">No se encontraron registros de auditoría</h3>
             <p class="empty-state__sub">
-              No hay acciones que coincidan con los filtros aplicados en este momento.
+              No hay eventos en la bitácora que coincidan con los filtros aplicados.
             </p>
             <button type="button" @click="limpiarFiltros" class="btn-clear mt-3">
-              Limpiar filtros de búsqueda
+              Restablecer filtros de búsqueda
             </button>
           </div>
         </div>
@@ -404,7 +494,7 @@ const getModuloIcon = (modulo) => {
         <!-- Paginación -->
         <div v-if="auditorias.links && auditorias.links.length > 3" class="pagination-footer">
           <div class="text-xs text-slate-500">
-            Página {{ auditorias.current_page }} de {{ auditorias.last_page }}
+            Mostrando <strong>{{ auditorias.from || 0 }} - {{ auditorias.to || 0 }}</strong> de <strong>{{ auditorias.total }}</strong> registros (Página {{ auditorias.current_page }} de {{ auditorias.last_page }})
           </div>
           <div class="pagination-links">
             <template v-for="(link, i) in auditorias.links" :key="i">
@@ -678,12 +768,53 @@ const getModuloIcon = (modulo) => {
   box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.12);
 }
 
-.filter-actions {
-  display: flex;
+.filter-subgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr auto;
+  gap: 14px;
+  align-items: flex-end;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.filter-date-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: #0f172a;
+  background-color: #ffffff;
+  outline: none;
+  transition: all 0.15s;
+}
+
+.filter-date-input:focus {
+  border-color: #185fa5;
+  box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.12);
+}
+
+.filter-group--btn-reset {
   justify-content: flex-end;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px dashed #f1f5f9;
+}
+
+.btn-sort-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 0.775rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-sort-toggle:hover {
+  background-color: #dbeafe;
 }
 
 .btn-reset {
@@ -1105,6 +1236,9 @@ const getModuloIcon = (modulo) => {
   .filter-grid {
     grid-template-columns: 1fr 1fr;
   }
+  .filter-subgrid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1112,6 +1246,9 @@ const getModuloIcon = (modulo) => {
     padding: 16px;
   }
   .filter-grid {
+    grid-template-columns: 1fr;
+  }
+  .filter-subgrid {
     grid-template-columns: 1fr;
   }
   .detail-grid {

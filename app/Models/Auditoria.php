@@ -58,6 +58,16 @@ class Auditoria extends Model
     }
 
     /**
+     * Scope para filtrar por tipo de acción
+     */
+    public function scopeAccion($query, ?string $accion)
+    {
+        if ($accion) {
+            $query->where('accion', $accion);
+        }
+    }
+
+    /**
      * Scope para filtrar por resultado (exitoso / fallido)
      */
     public function scopeResultado($query, ?string $resultado)
