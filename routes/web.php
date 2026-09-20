@@ -205,6 +205,20 @@ Route::middleware('auth')->group(function () {
         ->middleware('rol:administrador');
 
     Route::get(
+        '/auditoria/exportar/excel',
+        [AuditoriaController::class, 'exportarExcel']
+    )
+        ->name('auditoria.exportar.excel')
+        ->middleware('rol:administrador');
+
+    Route::get(
+        '/auditoria/exportar/csv',
+        [AuditoriaController::class, 'exportarCsv']
+    )
+        ->name('auditoria.exportar.csv')
+        ->middleware('rol:administrador');
+
+    Route::get(
         '/expedientes',
         [ExpedienteController::class, 'index']
     )

@@ -129,6 +129,246 @@ class AuditoriaController extends Controller
     }
 
     /**
+     * Exporta la bitácora completa filtrada en formato Microsoft Excel (.xlsx) nativo para auditorías externas.
+     */
+    public function exportarExcel(Request $request)
+    {
+        abort_unless(
+            Auth::user()?->rol === 'administrador',
+            403,
+            'Acceso restringido exclusivamente a Administradores del sistema.'
+        );
+
+        $orden = in_array(strtolower((string) $request->input('orden', 'desc')), ['asc', 'desc'], true)
+            ? strtolower((string) $request->input('orden', 'desc'))
+            : 'desc';
+
+        $query = $this->construirQueryFiltros($request)
+            ->orderBy('fecha_hora', $orden)
+            ->orderBy('id', $orden);
+
+        $registros = $query->get();
+
+        // Orden limpio y estructurado de columnas para lectura en Excel
+        $columnas = [
+            'ID Registro',
+            'Fecha y Hora',
+            'Usuario Responsable',
+            'Rol de Usuario',
+            'Correo Electrónico',
+            'Módulo',
+            'Tipo de Acción',
+            'Descripción de la Acción',
+            'Resultado',
+            'Nivel de Riesgo',
+            'Motivo de Alerta',
+            'Dirección IP',
+            'Navegador / Sistema',
+            'Entidad Afectada',
+            'Detalles de la Acción',
+        ];
+
+        // Anchos optimizados para lectura limpia de cada columna en Excel
+        $columnWidths = [12, 22, 24, 16, 26, 18, 26, 45, 16, 16, 30, 16, 24, 18, 55];
+
+        $filas = [];
+        foreach ($registros as $item) {
+            $esCritica = $item->esCriticaOSospechosa();
+            $motivoCritica = $item->motivoSospecha() ?? 'Normal';
+            $nivelRiesgo = $esCritica ? ($item->resultado === 'fallido' ? 'ALTO' : 'MEDIO') : 'BAJO';
+
+            $usuarioNombre = $item->usuario ? "{$item->usuario->nombre} {$item->usuario->apellido}" : ($item->usuario_nombre ?? 'Sistema / Anónimo');
+            $usuarioRol = $item->usuario ? $item->usuario->rol : ($item->usuario_rol ?? 'sistema');
+            $usuarioCorreo = $item->usuario ? $item->usuario->correo : 'N/A';
+
+            $entidad = $item->entidad_tipo ? "{$item->entidad_tipo} #{$item->entidad_id}" : 'N/A';
+            $detallesFormateados = $this->formatearDetallesLegibles($item->detalles);
+            $navegadorLimpio = $this->simplificarUserAgent($item->user_agent);
+
+            $filas[] = [
+                'id' => (int) $item->id,
+                'fecha_hora' => $item->fecha_hora ? $item->fecha_hora->format('Y-m-d H:i:s') : 'N/A',
+                'usuario' => $usuarioNombre,
+                'rol' => ucfirst($usuarioRol),
+                'correo' => $usuarioCorreo,
+                'modulo' => $item->modulo,
+                'accion' => $item->accion,
+                'descripcion' => $item->descripcion,
+                'resultado' => ucfirst($item->resultado),
+                'nivel_riesgo' => $nivelRiesgo,
+                'motivo_alerta' => $motivoCritica,
+                'ip' => $item->ip_address ?? 'N/A',
+                'navegador' => $navegadorLimpio,
+                'entidad' => $entidad,
+                'detalles' => $detallesFormateados,
+                '_es_critica' => $esCritica,
+                '_es_fallido' => ($item->resultado === 'fallido'),
+            ];
+        }
+
+        // Generar archivo .xlsx nativo (OpenXML)
+        $tempPath = \App\Services\SimpleXlsxGenerator::create(
+            'Bitacora_Auditoria',
+            $columnas,
+            $filas,
+            $columnWidths
+        );
+
+        $nombreArchivo = 'bitacora_auditoria_' . date('Ymd_His') . '.xlsx';
+
+        // Criterio 8: Registrar en la bitácora el evento de exportación realizado por el Administrador
+        $admin = Auth::user();
+        $totalExportados = count($filas);
+        $filtrosAplicados = array_filter($request->only([
+            'buscar', 'modulo', 'accion', 'usuario_id', 'resultado',
+            'periodo', 'desde', 'hasta', 'hora_desde', 'hora_hasta', 'solo_sospechosas'
+        ]));
+
+        app(\App\Services\AuditoriaService::class)->registrar(
+            modulo: 'Auditoría',
+            accion: 'Exportación de Bitácora a Excel',
+            descripcion: "El usuario Administrador ({$admin->nombre} {$admin->apellido}) exportó {$totalExportados} registro(s) de la bitácora de auditoría a archivo Excel (.xlsx).",
+            detalles: [
+                'formato' => 'xlsx',
+                'total_registros_exportados' => $totalExportados,
+                'filtros_aplicados' => $filtrosAplicados,
+                'nombre_archivo' => $nombreArchivo,
+                'ip' => $request->ip(),
+            ],
+            resultado: 'exitoso',
+            request: $request,
+            usuario: $admin
+        );
+
+        return response()->download($tempPath, $nombreArchivo, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => "attachment; filename=\"{$nombreArchivo}\"",
+            'Cache-Control' => 'max-age=0, no-cache, must-revalidate, proxy-revalidate',
+        ])->deleteFileAfterSend(true);
+    }
+
+    /**
+     * Exporta la bitácora en formato CSV con delimitador compatible con Excel en español y streaming en bloques.
+     */
+    public function exportarCsv(Request $request): StreamedResponse
+    {
+        abort_unless(
+            Auth::user()?->rol === 'administrador',
+            403,
+            'Acceso restringido exclusivamente a Administradores del sistema.'
+        );
+
+        $orden = in_array(strtolower((string) $request->input('orden', 'desc')), ['asc', 'desc'], true)
+            ? strtolower((string) $request->input('orden', 'desc'))
+            : 'desc';
+
+        $query = $this->construirQueryFiltros($request)
+            ->orderBy('fecha_hora', $orden)
+            ->orderBy('id', $orden);
+
+        $nombreArchivo = 'bitacora_auditoria_' . date('Ymd_His') . '.csv';
+
+        // Criterio 8: Registrar en la bitácora el evento de exportación realizado por el Administrador
+        $admin = Auth::user();
+        $totalEstimado = (clone $query)->count();
+        $filtrosAplicados = array_filter($request->only([
+            'buscar', 'modulo', 'accion', 'usuario_id', 'resultado',
+            'periodo', 'desde', 'hasta', 'hora_desde', 'hora_hasta', 'solo_sospechosas'
+        ]));
+
+        app(\App\Services\AuditoriaService::class)->registrar(
+            modulo: 'Auditoría',
+            accion: 'Exportación de Bitácora a CSV',
+            descripcion: "El usuario Administrador ({$admin->nombre} {$admin->apellido}) exportó {$totalEstimado} registro(s) de la bitácora de auditoría a archivo plano CSV.",
+            detalles: [
+                'formato' => 'csv',
+                'total_registros_exportados' => $totalEstimado,
+                'filtros_aplicados' => $filtrosAplicados,
+                'nombre_archivo' => $nombreArchivo,
+                'ip' => $request->ip(),
+            ],
+            resultado: 'exitoso',
+            request: $request,
+            usuario: $admin
+        );
+
+        $headers = [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => "attachment; filename=\"{$nombreArchivo}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0',
+        ];
+
+        $controller = $this;
+
+        return response()->streamDownload(function () use ($query, $controller) {
+            $handle = fopen('php://output', 'w');
+
+            // 1. BOM UTF-8 al inicio exacto para apertura correcta con acentos y tildes en Microsoft Excel
+            fputs($handle, "\xEF\xBB\xBF");
+
+            // 2. Encabezados ordenados y claros
+            fputcsv($handle, [
+                'ID Registro',
+                'Fecha y Hora',
+                'Usuario Responsable',
+                'Rol de Usuario',
+                'Correo Electrónico',
+                'Módulo',
+                'Tipo de Acción',
+                'Descripción de la Acción',
+                'Resultado',
+                'Nivel de Riesgo',
+                'Motivo de Alerta',
+                'Dirección IP',
+                'Navegador / Sistema',
+                'Entidad Afectada',
+                'Detalles de la Acción',
+            ], ';');
+
+            // 4. Streaming en bloques de 500 registros con delimitador ';'
+            $query->chunk(500, function ($registros) use ($handle, $controller) {
+                foreach ($registros as $item) {
+                    $esCritica = $item->esCriticaOSospechosa();
+                    $motivoCritica = $item->motivoSospecha() ?? 'Normal';
+                    $nivelRiesgo = $esCritica ? ($item->resultado === 'fallido' ? 'ALTO' : 'MEDIO') : 'BAJO';
+
+                    $usuarioNombre = $item->usuario ? "{$item->usuario->nombre} {$item->usuario->apellido}" : ($item->usuario_nombre ?? 'Sistema / Anónimo');
+                    $usuarioRol = $item->usuario ? $item->usuario->rol : ($item->usuario_rol ?? 'sistema');
+                    $usuarioCorreo = $item->usuario ? $item->usuario->correo : 'N/A';
+
+                    $entidad = $item->entidad_tipo ? "{$item->entidad_tipo} #{$item->entidad_id}" : 'N/A';
+                    $detallesFormateados = $controller->formatearDetallesLegibles($item->detalles);
+                    $navegadorLimpio = $controller->simplificarUserAgent($item->user_agent);
+
+                    $fechaFormateada = $item->fecha_hora ? '="' . $item->fecha_hora->format('Y-m-d H:i:s') . '"' : 'N/A';
+
+                    fputcsv($handle, [
+                        $item->id,
+                        $fechaFormateada,
+                        $usuarioNombre,
+                        ucfirst($usuarioRol),
+                        $usuarioCorreo,
+                        $item->modulo,
+                        $item->accion,
+                        $item->descripcion,
+                        ucfirst($item->resultado),
+                        $nivelRiesgo,
+                        $motivoCritica,
+                        $item->ip_address ?? 'N/A',
+                        $navegadorLimpio,
+                        $entidad,
+                        $detallesFormateados,
+                    ], ';');
+                }
+            });
+
+            fclose($handle);
+        }, $nombreArchivo, $headers);
+    }
+
+    /**
      * Convierte el array o JSON de detalles técnicos a texto limpio y legible para humanos en Excel y CSV.
      */
     public function formatearDetallesLegibles(mixed $detalles): string

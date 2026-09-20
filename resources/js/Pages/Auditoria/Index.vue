@@ -127,7 +127,27 @@ const toggleSoloSospechosas = () => {
   aplicarFiltros();
 };
 
+// Exportar bitácora respetando exactamente los filtros aplicados
+const obtenerQueryStringExport = () => {
+  const params = new URLSearchParams();
+  const obj = generarParamsFiltro();
+  for (const [key, val] of Object.entries(obj)) {
+    if (val !== undefined && val !== null && val !== '') {
+      params.append(key, val);
+    }
+  }
+  return params.toString();
+};
 
+const exportarExcel = () => {
+  const qs = obtenerQueryStringExport();
+  window.location.href = `/auditoria/exportar/excel${qs ? '?' + qs : ''}`;
+};
+
+const exportarCsv = () => {
+  const qs = obtenerQueryStringExport();
+  window.location.href = `/auditoria/exportar/csv${qs ? '?' + qs : ''}`;
+};
 
 // Búsqueda en vivo con debounce
 watch(buscar, () => {
@@ -198,7 +218,26 @@ const getModuloIcon = (modulo) => {
           </p>
         </div>
 
-
+        <div class="audit-header-actions">
+          <button
+            type="button"
+            class="btn-export btn-export--excel"
+            @click="exportarExcel"
+            title="Exportar bitácora filtrada a archivo Microsoft Excel (.xlsx) para auditoría externa"
+          >
+            <Download class="w-4 h-4" />
+            <span>Exportar a Excel (.xlsx)</span>
+          </button>
+          <button
+            type="button"
+            class="btn-export btn-export--csv"
+            @click="exportarCsv"
+            title="Exportar bitácora filtrada a formato plano CSV (.csv)"
+          >
+            <FileText class="w-4 h-4" />
+            <span>Exportar CSV</span>
+          </button>
+        </div>
       </header>
 
       <!-- Tarjetas de Estadísticas Rápidas -->
