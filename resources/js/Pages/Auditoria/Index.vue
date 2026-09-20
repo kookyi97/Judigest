@@ -27,7 +27,10 @@ import {
   Globe,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  Download,
+  FileSpreadsheet,
+  AlertOctagon,
 } from 'lucide-vue-next';
 
 const props = defineProps({
@@ -53,7 +56,7 @@ const props = defineProps({
   },
   estadisticas: {
     type: Object,
-    default: () => ({ total: 0, hoy: 0, exitosas: 0, fallidas: 0 }),
+    default: () => ({ total: 0, hoy: 0, exitosas: 0, fallidas: 0, sospechosas: 0 }),
   },
 });
 
@@ -66,6 +69,9 @@ const resultadoSeleccionado = ref(props.filtros.resultado || '');
 const periodoSeleccionado = ref(props.filtros.periodo || 'todos');
 const fechaDesde = ref(props.filtros.desde || '');
 const fechaHasta = ref(props.filtros.hasta || '');
+const horaDesde = ref(props.filtros.hora_desde || '');
+const horaHasta = ref(props.filtros.hora_hasta || '');
+const soloSospechosas = ref(Boolean(props.filtros.solo_sospechosas));
 const ordenSeleccionado = ref(props.filtros.orden || 'desc');
 
 // Modal para inspeccionar detalles JSON
@@ -77,22 +83,30 @@ const cerrarDetalle = () => {
   auditoriaDetalle.value = null;
 };
 
+// Generar objeto con parámetros de filtrado actuales
+const generarParamsFiltro = () => {
+  return {
+    buscar: buscar.value || undefined,
+    modulo: moduloSeleccionado.value || undefined,
+    accion: accionSeleccionada.value || undefined,
+    usuario_id: usuarioSeleccionado.value || undefined,
+    resultado: resultadoSeleccionado.value || undefined,
+    periodo: periodoSeleccionado.value !== 'todos' ? periodoSeleccionado.value : undefined,
+    desde: fechaDesde.value || undefined,
+    hasta: fechaHasta.value || undefined,
+    hora_desde: horaDesde.value || undefined,
+    hora_hasta: horaHasta.value || undefined,
+    solo_sospechosas: soloSospechosas.value ? '1' : undefined,
+    orden: ordenSeleccionado.value !== 'desc' ? ordenSeleccionado.value : undefined,
+  };
+};
+
 // Aplicar filtros a través de Inertia
 let debounceBusqueda = null;
 const aplicarFiltros = () => {
   router.get(
     '/auditoria',
-    {
-      buscar: buscar.value || undefined,
-      modulo: moduloSeleccionado.value || undefined,
-      accion: accionSeleccionada.value || undefined,
-      usuario_id: usuarioSeleccionado.value || undefined,
-      resultado: resultadoSeleccionado.value || undefined,
-      periodo: periodoSeleccionado.value !== 'todos' ? periodoSeleccionado.value : undefined,
-      desde: fechaDesde.value || undefined,
-      hasta: fechaHasta.value || undefined,
-      orden: ordenSeleccionado.value !== 'desc' ? ordenSeleccionado.value : undefined,
-    },
+    generarParamsFiltro(),
     {
       preserveState: true,
       preserveScroll: true,
@@ -106,6 +120,14 @@ const alternarOrden = () => {
   ordenSeleccionado.value = ordenSeleccionado.value === 'desc' ? 'asc' : 'desc';
   aplicarFiltros();
 };
+
+// Alternar filtro de solo actividades sospechosas o anomalías
+const toggleSoloSospechosas = () => {
+  soloSospechosas.value = !soloSospechosas.value;
+  aplicarFiltros();
+};
+
+
 
 // Búsqueda en vivo con debounce
 watch(buscar, () => {
@@ -125,6 +147,9 @@ const limpiarFiltros = () => {
   periodoSeleccionado.value = 'todos';
   fechaDesde.value = '';
   fechaHasta.value = '';
+  horaDesde.value = '';
+  horaHasta.value = '';
+  soloSospechosas.value = false;
   ordenSeleccionado.value = 'desc';
   router.get('/auditoria', {}, { preserveState: true, replace: true });
 };
@@ -137,6 +162,7 @@ const getModuloBadge = (modulo) => {
     Usuarios: 'badge--ambar',
     Configuración: 'badge--verde',
     Autenticación: 'badge--indigo',
+    Seguridad: 'badge--rojo',
   };
   return map[modulo] || 'badge--gris';
 };
@@ -148,6 +174,7 @@ const getModuloIcon = (modulo) => {
     Usuarios: Users,
     Configuración: Sliders,
     Autenticación: Lock,
+    Seguridad: ShieldAlert,
   };
   return map[modulo] || Activity;
 };
@@ -158,18 +185,20 @@ const getModuloIcon = (modulo) => {
     <Head title="Bitácora de Auditoría y Registro Cronológico" />
 
     <div class="audit-page">
-      <!-- Encabezado -->
+      <!-- Encabezado con Acciones de Exportación -->
       <header class="audit-header">
         <div>
           <div class="audit-tag">
             <ShieldCheck class="w-3.5 h-3.5" />
             <span>Trazabilidad Inmutable del Sistema</span>
           </div>
-          <h1 class="audit-title">Registro Cronológico y Bitácora de Acciones</h1>
+          <h1 class="audit-title">Registro Cronológico y Respaldo de Auditoría</h1>
           <p class="audit-sub">
-            Monitoreo general y auditoría inmutable: consulte quién, cuándo y qué acción exacta se ejecutó en <strong>Judigest</strong>.
+            Monitoreo continuo para auditorías externas y detección de actividades sospechosas: consulte quién, cuándo y qué acción exacta se ejecutó en <strong>Judigest</strong>.
           </p>
         </div>
+
+
       </header>
 
       <!-- Tarjetas de Estadísticas Rápidas -->
@@ -208,13 +237,32 @@ const getModuloIcon = (modulo) => {
         </div>
 
         <div class="stat-card">
-          <div class="stat-card__icon bg-amber-50 text-amber-700">
+          <div class="stat-card__icon bg-rose-50 text-rose-700">
             <AlertTriangle class="w-5 h-5" />
           </div>
           <div>
             <p class="stat-card__label">Incidentes o Rechazos</p>
             <p class="stat-card__val">{{ estadisticas.fallidas }}</p>
             <p class="stat-card__sub">intentos fallidos / errores</p>
+          </div>
+        </div>
+
+        <!-- Tarjeta de Actividades Sospechosas / Críticas -->
+        <div
+          class="stat-card stat-card--interactive"
+          :class="{ 'stat-card--selected': soloSospechosas }"
+          @click="toggleSoloSospechosas"
+          title="Haga clic para filtrar solo actividades sospechosas o críticas"
+        >
+          <div class="stat-card__icon bg-amber-50 text-amber-700">
+            <AlertOctagon class="w-5 h-5" />
+          </div>
+          <div>
+            <p class="stat-card__label">Actividades Sospechosas / Críticas</p>
+            <p class="stat-card__val text-amber-700">{{ estadisticas.sospechosas }}</p>
+            <p class="stat-card__sub">
+              {{ soloSospechosas ? 'Filtro activo (clic para ver todas)' : 'clic para filtrar anomalías' }}
+            </p>
           </div>
         </div>
       </div>
@@ -279,7 +327,7 @@ const getModuloIcon = (modulo) => {
           </div>
         </div>
 
-        <!-- Filtros secundarios de fechas y estado -->
+        <!-- Filtros secundarios de fechas, horas y estado -->
         <div class="filter-subgrid mt-3">
           <!-- Período rápido -->
           <div class="filter-group">
@@ -314,6 +362,30 @@ const getModuloIcon = (modulo) => {
             />
           </div>
 
+          <!-- Hora Desde -->
+          <div class="filter-group">
+            <label class="filter-label">Hora Desde</label>
+            <input
+              v-model="horaDesde"
+              type="time"
+              @change="aplicarFiltros"
+              class="filter-time-input"
+              title="Hora inicial del filtro"
+            />
+          </div>
+
+          <!-- Hora Hasta -->
+          <div class="filter-group">
+            <label class="filter-label">Hora Hasta</label>
+            <input
+              v-model="horaHasta"
+              type="time"
+              @change="aplicarFiltros"
+              class="filter-time-input"
+              title="Hora final del filtro"
+            />
+          </div>
+
           <!-- Resultado -->
           <div class="filter-group">
             <label class="filter-label">Resultado</label>
@@ -323,18 +395,40 @@ const getModuloIcon = (modulo) => {
               <option value="fallido">Solo Fallidos</option>
             </select>
           </div>
+        </div>
 
-          <div class="filter-group filter-group--btn-reset">
+        <!-- Barra inferior de acciones de filtro -->
+        <div class="filter-actions-bar mt-3 pt-3 border-t border-slate-100 flex items-center justify-between flex-wrap gap-2">
+          <!-- Botón de alternancia de actividades sospechosas -->
+          <div class="flex items-center gap-2">
             <button
               type="button"
-              @click="limpiarFiltros"
-              class="btn-reset"
-              title="Restablecer filtros"
+              @click="toggleSoloSospechosas"
+              class="btn-toggle-suspicious"
+              :class="{ 'btn-toggle-suspicious--active': soloSospechosas }"
             >
-              <RotateCcw class="w-3.5 h-3.5" />
-              <span>Limpiar Filtros</span>
+              <AlertTriangle class="w-3.5 h-3.5" />
+              <span>Solo actividades sospechosas o críticas</span>
+              <span v-if="estadisticas.sospechosas > 0" class="badge-count">
+                {{ estadisticas.sospechosas }}
+              </span>
             </button>
+
+            <span v-if="soloSospechosas" class="text-xs text-amber-700 font-medium">
+              Mostrando intentos fallidos, bloqueos, eliminaciones y cambios sensibles.
+            </span>
           </div>
+
+          <!-- Limpiar filtros -->
+          <button
+            type="button"
+            @click="limpiarFiltros"
+            class="btn-reset"
+            title="Restablecer todos los filtros"
+          >
+            <RotateCcw class="w-3.5 h-3.5" />
+            <span>Restablecer Filtros</span>
+          </button>
         </div>
       </div>
 
@@ -343,7 +437,7 @@ const getModuloIcon = (modulo) => {
         <div class="table-card__header">
           <div class="flex items-center gap-2">
             <Activity class="w-4 h-4 text-blue-700" />
-            <h2 class="table-card__title">Registro Cronológico de Eventos</h2>
+            <h2 class="table-card__title">Historial Cronológico Inmutable</h2>
           </div>
           <div class="flex items-center gap-3">
             <span class="text-xs text-slate-500">
@@ -384,7 +478,15 @@ const getModuloIcon = (modulo) => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="item in auditorias.data" :key="item.id" class="audit-tbl__row">
+              <tr
+                v-for="item in auditorias.data"
+                :key="item.id"
+                class="audit-tbl__row"
+                :class="{
+                  'audit-tbl__row--sospechosa': item.es_critica && item.resultado !== 'fallido',
+                  'audit-tbl__row--fallido': item.resultado === 'fallido',
+                }"
+              >
                 <!-- Fecha -->
                 <td class="audit-tbl__date">
                   <div class="font-semibold text-slate-800">{{ item.fecha }}</div>
@@ -418,12 +520,24 @@ const getModuloIcon = (modulo) => {
                   </div>
                 </td>
 
-                <!-- Tipo de Acción -->
+                <!-- Tipo de Acción con Resaltado Visual -->
                 <td>
-                  <div class="font-bold text-slate-800 text-sm">
-                    {{ item.accion }}
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="font-bold text-slate-800 text-sm">
+                      {{ item.accion }}
+                    </span>
+                    <!-- Badge indicador de actividad sospechosa o crítica -->
+                    <span
+                      v-if="item.es_critica"
+                      class="badge-alerta"
+                      :class="item.resultado === 'fallido' ? 'badge-alerta--alto' : 'badge-alerta--medio'"
+                      :title="item.motivo_critica"
+                    >
+                      <AlertTriangle class="w-3 h-3 inline mr-0.5" />
+                      {{ item.resultado === 'fallido' ? 'Sospechosa' : 'Crítica' }}
+                    </span>
                   </div>
-                  <div v-if="item.entidad_tipo" class="text-xs text-slate-500 font-mono">
+                  <div v-if="item.entidad_tipo" class="text-xs text-slate-500 font-mono mt-0.5">
                     {{ item.entidad_tipo }} #{{ item.entidad_id || '—' }}
                   </div>
                 </td>
@@ -468,7 +582,7 @@ const getModuloIcon = (modulo) => {
                     type="button"
                     @click="abrirDetalle(item)"
                     class="btn-inspect"
-                    title="Visualizar detalles completos de la acción registrada"
+                    title="Visualizar detalles completos y certificado de la acción registrada"
                   >
                     <Eye class="w-3.5 h-3.5" />
                     <span>Ver</span>
@@ -517,13 +631,13 @@ const getModuloIcon = (modulo) => {
       </div>
     </div>
 
-    <!-- Modal de Detalle Técnico / Autoría Certificada -->
+    <!-- Modal de Detalle Técnico / Certificado Inmutable de Autoría -->
     <div v-if="auditoriaDetalle" class="modal-backdrop" @click.self="cerrarDetalle">
       <div class="modal-card">
         <div class="modal-card__header">
           <div class="flex items-center gap-2">
             <ShieldCheck class="w-5 h-5 text-blue-700" />
-            <h3 class="modal-card__title">Certificado Inmutable de Autoría</h3>
+            <h3 class="modal-card__title">Certificado Inmutable de Autoría y Trazabilidad</h3>
           </div>
           <button @click="cerrarDetalle" class="modal-close-btn" type="button">
             <X class="w-4 h-4" />
@@ -531,10 +645,27 @@ const getModuloIcon = (modulo) => {
         </div>
 
         <div class="modal-card__body">
+          <!-- Alerta de Actividad Sospechosa o Crítica -->
+          <div
+            v-if="auditoriaDetalle.es_critica"
+            class="alert-box-suspicious"
+            :class="auditoriaDetalle.resultado === 'fallido' ? 'alert-box--danger' : 'alert-box--warning'"
+          >
+            <div class="flex items-center gap-2 font-bold text-sm">
+              <AlertTriangle class="w-4 h-4 shrink-0" />
+              <span>
+                Alerta de Auditoría: Actividad {{ auditoriaDetalle.resultado === 'fallido' ? 'Sospechosa / Anómala' : 'Crítica de Alto Impacto' }}
+              </span>
+            </div>
+            <p class="text-xs mt-1.5 opacity-90">
+              {{ auditoriaDetalle.motivo_critica || 'Esta acción requiere atención o verificación en auditoría externa.' }}
+            </p>
+          </div>
+
           <div class="detail-grid">
             <div class="detail-item">
               <span class="detail-item__label">ID de Registro</span>
-              <span class="detail-item__val font-mono">#{{ auditoriaDetalle.id }}</span>
+              <span class="detail-item__val font-mono font-bold">#{{ auditoriaDetalle.id }}</span>
             </div>
 
             <div class="detail-item">
@@ -605,7 +736,12 @@ const getModuloIcon = (modulo) => {
 
 /* ── Encabezado ── */
 .audit-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
   margin-bottom: 24px;
+  flex-wrap: wrap;
 }
 
 .audit-tag {
@@ -636,12 +772,54 @@ const getModuloIcon = (modulo) => {
   font-size: 0.925rem;
   color: #64748b;
   margin: 0;
+  max-width: 820px;
+}
+
+.audit-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 0.825rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+
+.btn-export--excel {
+  background-color: #047857;
+  color: #ffffff;
+}
+
+.btn-export--excel:hover {
+  background-color: #065f46;
+  box-shadow: 0 2px 6px rgba(4, 120, 87, 0.25);
+}
+
+.btn-export--csv {
+  background-color: #ffffff;
+  color: #1e293b;
+  border-color: #cbd5e1;
+}
+
+.btn-export--csv:hover {
+  background-color: #f8fafc;
+  border-color: #94a3b8;
 }
 
 /* ── Tarjetas de Estadísticas ── */
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
@@ -655,6 +833,23 @@ const getModuloIcon = (modulo) => {
   align-items: center;
   gap: 16px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+  transition: all 0.15s ease;
+}
+
+.stat-card--interactive {
+  cursor: pointer;
+}
+
+.stat-card--interactive:hover {
+  border-color: #f59e0b;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+}
+
+.stat-card--selected {
+  border-color: #d97706;
+  background-color: #fffbeb;
+  box-shadow: 0 0 0 2px rgba(217, 119, 6, 0.2);
 }
 
 .stat-card__icon {
@@ -714,7 +909,7 @@ const getModuloIcon = (modulo) => {
 }
 
 .filter-label {
-  font-size: 0.775rem;
+  font-size: 0.75rem;
   font-weight: 700;
   color: #475569;
   text-transform: uppercase;
@@ -751,9 +946,11 @@ const getModuloIcon = (modulo) => {
   box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.12);
 }
 
-.filter-select {
+.filter-select,
+.filter-date-input,
+.filter-time-input {
   width: 100%;
-  padding: 9px 12px;
+  padding: 8px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
   font-size: 0.85rem;
@@ -763,58 +960,60 @@ const getModuloIcon = (modulo) => {
   transition: all 0.15s;
 }
 
-.filter-select:focus {
+.filter-select:focus,
+.filter-date-input:focus,
+.filter-time-input:focus {
   border-color: #185fa5;
   box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.12);
 }
 
 .filter-subgrid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr auto;
-  gap: 14px;
+  grid-template-columns: 1.2fr 1fr 1fr 1fr 1fr 1.2fr;
+  gap: 12px;
   align-items: flex-end;
   padding-top: 12px;
   border-top: 1px dashed #e2e8f0;
 }
 
-.filter-date-input {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
-  font-size: 0.85rem;
-  color: #0f172a;
-  background-color: #ffffff;
-  outline: none;
-  transition: all 0.15s;
-}
-
-.filter-date-input:focus {
-  border-color: #185fa5;
-  box-shadow: 0 0 0 3px rgba(24, 95, 165, 0.12);
-}
-
-.filter-group--btn-reset {
-  justify-content: flex-end;
-}
-
-.btn-sort-toggle {
+.btn-toggle-suspicious {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background-color: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #1e40af;
-  font-size: 0.775rem;
-  font-weight: 600;
-  padding: 5px 10px;
+  gap: 7px;
+  padding: 6px 12px;
   border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid #cbd5e1;
+  background-color: #f8fafc;
+  color: #475569;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 
-.btn-sort-toggle:hover {
-  background-color: #dbeafe;
+.btn-toggle-suspicious:hover {
+  background-color: #fffbeb;
+  border-color: #fcd34d;
+  color: #b45309;
+}
+
+.btn-toggle-suspicious--active {
+  background-color: #fef3c7;
+  border-color: #f59e0b;
+  color: #92400e;
+  font-weight: 700;
+}
+
+.badge-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #b45309;
+  color: #ffffff;
+  font-size: 0.7rem;
+  border-radius: 9999px;
+  padding: 0 6px;
+  height: 18px;
 }
 
 .btn-reset {
@@ -827,8 +1026,8 @@ const getModuloIcon = (modulo) => {
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
 }
 
 .btn-reset:hover {
@@ -861,6 +1060,25 @@ const getModuloIcon = (modulo) => {
   margin: 0;
 }
 
+.btn-sort-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e40af;
+  font-size: 0.775rem;
+  font-weight: 600;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-sort-toggle:hover {
+  background-color: #dbeafe;
+}
+
 .table-responsive {
   overflow-x: auto;
 }
@@ -889,8 +1107,31 @@ const getModuloIcon = (modulo) => {
   vertical-align: middle;
 }
 
+.audit-tbl__row {
+  transition: background-color 0.15s;
+}
+
 .audit-tbl__row:hover {
   background-color: #fcfdfe;
+}
+
+/* Resaltado visual de actividades sospechosas y fallidas */
+.audit-tbl__row--sospechosa {
+  border-left: 4px solid #f59e0b;
+  background-color: #fffdf8;
+}
+
+.audit-tbl__row--sospechosa:hover {
+  background-color: #fffbeb;
+}
+
+.audit-tbl__row--fallido {
+  border-left: 4px solid #ef4444;
+  background-color: #fef8f8;
+}
+
+.audit-tbl__row--fallido:hover {
+  background-color: #fef2f2;
 }
 
 .audit-tbl__time {
@@ -942,34 +1183,35 @@ const getModuloIcon = (modulo) => {
   letter-spacing: 0.03em;
 }
 
-.badge--azul {
-  background-color: #eff6ff;
-  color: #1e40af;
+.badge--azul { background-color: #eff6ff; color: #1e40af; }
+.badge--morado { background-color: #faf5ff; color: #6b21a8; }
+.badge--ambar { background-color: #fffbeb; color: #b45309; }
+.badge--verde { background-color: #ecfdf5; color: #065f46; }
+.badge--indigo { background-color: #eef2ff; color: #3730a3; }
+.badge--rojo { background-color: #fee2e2; color: #991b1b; }
+.badge--gris { background-color: #f1f5f9; color: #475569; }
+
+/* Badge Alerta para eventos sospechosos */
+.badge-alerta {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 }
 
-.badge--morado {
-  background-color: #faf5ff;
-  color: #6b21a8;
+.badge-alerta--alto {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fca5a5;
 }
 
-.badge--ambar {
-  background-color: #fffbeb;
-  color: #b45309;
-}
-
-.badge--verde {
-  background-color: #ecfdf5;
-  color: #065f46;
-}
-
-.badge--indigo {
-  background-color: #eef2ff;
-  color: #3730a3;
-}
-
-.badge--gris {
-  background-color: #f1f5f9;
-  color: #475569;
+.badge-alerta--medio {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
 }
 
 /* Status Pill */
@@ -1161,6 +1403,24 @@ const getModuloIcon = (modulo) => {
   gap: 16px;
 }
 
+.alert-box-suspicious {
+  border-radius: 8px;
+  padding: 12px 14px;
+  border: 1px solid;
+}
+
+.alert-box--danger {
+  background-color: #fef2f2;
+  border-color: #f87171;
+  color: #991b1b;
+}
+
+.alert-box--warning {
+  background-color: #fffbeb;
+  border-color: #fcd34d;
+  color: #92400e;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1237,7 +1497,7 @@ const getModuloIcon = (modulo) => {
     grid-template-columns: 1fr 1fr;
   }
   .filter-subgrid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
   }
 }
 
@@ -1253,6 +1513,13 @@ const getModuloIcon = (modulo) => {
   }
   .detail-grid {
     grid-template-columns: 1fr;
+  }
+  .audit-header {
+    flex-direction: column;
+  }
+  .audit-header-actions {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 </style>
