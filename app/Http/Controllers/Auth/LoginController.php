@@ -62,11 +62,12 @@ class LoginController extends Controller
 
         // JD045: incrementar intentos fallidos
         if ($usuario) {
+            $maxIntentos = (int) app(\App\Services\ConfiguracionService::class)->get('seguridad_max_intentos_login', 5);
             $intentos = $usuario->intentos_fallidos + 1;
             $bloqueo  = null;
             $accion   = 'intento_fallido';
 
-            if ($intentos >= self::MAX_INTENTOS) {
+            if ($intentos >= $maxIntentos) {
                 $bloqueo = now()->addMinutes(self::MINUTOS_BLOQUEO);
                 $accion  = 'bloqueado';
             }
@@ -79,7 +80,7 @@ class LoginController extends Controller
             app(\App\Services\AuditoriaService::class)->registrar(
                 modulo: 'Autenticación',
                 accion: $accion === 'bloqueado' ? 'Bloqueo de Cuenta por Intentos Fallidos' : 'Intento Fallido de Inicio de Sesión',
-                descripcion: "Intento fallido de inicio de sesión para {$usuario->nombre} {$usuario->apellido} ({$request->correo}). Intento {$intentos} de " . self::MAX_INTENTOS . ".",
+                descripcion: "Intento fallido de inicio de sesión para {$usuario->nombre} {$usuario->apellido} ({$request->correo}). Intento {$intentos} de {$maxIntentos}.",
                 detalles: [
                     'correo' => $request->correo,
                     'intentos' => $intentos,
@@ -96,7 +97,7 @@ class LoginController extends Controller
                 ]);
             }
 
-            $restantes = self::MAX_INTENTOS - $intentos;
+            $restantes = max(0, $maxIntentos - $intentos);
             return back()->withErrors([
                 'correo' => "Credenciales incorrectas. Te quedan {$restantes} intento(s)."
             ]);

@@ -12,35 +12,44 @@ class UsuarioController extends Controller
      * Display a listing of the resource.
      */
     public function index() {
-    $usuarios = Usuario::with('modificador')->withTrashed()->orderBy('created_at','desc')->get();
-    return Inertia::render('Usuarios/Index', compact('usuarios'));
-}
+        $usuarios = Usuario::with('modificador')->orderBy('created_at','desc')->get();
+        $minPassword = (int) app(\App\Services\ConfiguracionService::class)->get('seguridad_longitud_min_password', 8);
+        return Inertia::render('Usuarios/Index', [
+            'usuarios' => $usuarios,
+            'longitudMinimaPassword' => $minPassword,
+        ]);
+    }
 
     /**
      * Show the form for creating a new resource.
      */
     public function create()
     {
-        return Inertia::render('Usuarios/Create');
+        $minPassword = (int) app(\App\Services\ConfiguracionService::class)->get('seguridad_longitud_min_password', 8);
+        return Inertia::render('Usuarios/Create', [
+            'longitudMinimaPassword' => $minPassword,
+        ]);
     }
 
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request) {
-    $request->validate([
-        'nombre_usuario' => 'required|max:50|unique:usuarios,nombre_usuario',
-        'nombre'     => 'required|max:100',
-        'apellido'   => 'required|max:100',
-        'correo'     => 'required|email|unique:usuarios,correo',
-        'contrasena' => 'required|min:8|confirmed',
-        'rol'        => 'required|in:administrador,secretario,asesor,practicante',
-        'activo'     => 'boolean',
-    ], [
-        'nombre_usuario.unique' => 'Ya existe un usuario con este nombre de usuario.',
-        'correo.unique' => 'Ya existe un usuario registrado con este correo.',
-        'contrasena.confirmed' => 'Las contraseñas no coinciden.',
-    ]);
+        $minPassword = (int) app(\App\Services\ConfiguracionService::class)->get('seguridad_longitud_min_password', 8);
+        $request->validate([
+            'nombre_usuario' => 'required|max:50|unique:usuarios,nombre_usuario',
+            'nombre'     => 'required|max:100',
+            'apellido'   => 'required|max:100',
+            'correo'     => 'required|email|unique:usuarios,correo',
+            'contrasena' => "required|min:{$minPassword}|confirmed",
+            'rol'        => 'required|in:administrador,secretario,asesor,practicante',
+            'activo'     => 'boolean',
+        ], [
+            'nombre_usuario.unique' => 'Ya existe un usuario con este nombre de usuario.',
+            'correo.unique' => 'Ya existe un usuario registrado con este correo.',
+            'contrasena.min' => "La contraseña debe tener al menos {$minPassword} caracteres.",
+            'contrasena.confirmed' => 'Las contraseñas no coinciden.',
+        ]);
     
     // JD044: hash automático via cast 'hashed'
     Usuario::create($request->all());
@@ -143,11 +152,12 @@ class UsuarioController extends Controller
      */
     public function resetPassword(Request $request, Usuario $usuario)
     {
+        $minPassword = (int) app(\App\Services\ConfiguracionService::class)->get('seguridad_longitud_min_password', 8);
         $request->validate([
-            'contrasena' => 'required|min:8'
+            'contrasena' => "required|min:{$minPassword}"
         ], [
             'contrasena.required' => 'La nueva contraseña es obligatoria.',
-            'contrasena.min' => 'La nueva contraseña debe tener al menos 8 caracteres.'
+            'contrasena.min' => "La nueva contraseña debe tener al menos {$minPassword} caracteres."
         ]);
 
         // Actualizar el usuario (el mutador/cast aplicará el hash)

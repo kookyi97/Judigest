@@ -26,8 +26,23 @@ const props = defineProps({
     asesores: {
         type: Array,
         default: () => []
+    },
+    tiposProceso: {
+        type: Array,
+        default: () => ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']
+    },
+    configuracionDocumentos: {
+        type: Object,
+        default: () => ({
+            maxTamanoMb: 10,
+            formatosPermitidos: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']
+        })
     }
 });
+
+const maxTamanoMb = computed(() => props.configuracionDocumentos?.maxTamanoMb || 10);
+const formatosPermitidos = computed(() => props.configuracionDocumentos?.formatosPermitidos || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']);
+const acceptFormatos = computed(() => formatosPermitidos.value.map(ext => `.${ext}`).join(','));
 
 const page = usePage();
 
@@ -239,24 +254,12 @@ const formatearTamano = (tamano) => {
                                         class="input-select"
                                         v-model="form.tipo_proceso"
                                     >
-                                        <option value="Civil">
-                                            Civil
-                                        </option>
-
-                                        <option value="Penal">
-                                            Penal
-                                        </option>
-
-                                        <option value="Laboral">
-                                            Laboral
-                                        </option>
-
-                                        <option value="Familia">
-                                            Familia
-                                        </option>
-
-                                        <option value="Administrativo">
-                                            Administrativo
+                                        <option
+                                            v-for="tipo in tiposProceso"
+                                            :key="tipo"
+                                            :value="tipo"
+                                        >
+                                            {{ tipo }}
                                         </option>
                                     </select>
                                 </div>
@@ -462,8 +465,8 @@ const formatearTamano = (tamano) => {
                                         </strong>
 
                                         <span>
-                                            PDF, Word, Excel o imagen.
-                                            Máximo 10 MB.
+                                            Formatos autorizados: {{ formatosPermitidos.join(', ').toUpperCase() }}.
+                                            Máximo {{ maxTamanoMb }} MB.
                                         </span>
                                     </div>
                                 </div>
@@ -471,7 +474,7 @@ const formatearTamano = (tamano) => {
                                 <input
                                     id="documento"
                                     type="file"
-                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                                    :accept="acceptFormatos"
                                     @change="seleccionarArchivo"
                                 />
 

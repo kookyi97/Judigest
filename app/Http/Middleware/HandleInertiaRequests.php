@@ -49,6 +49,12 @@ class HandleInertiaRequests extends Middleware
             'error' => $request->session()->get('error'),
             'nueva_contrasena' => $request->session()->get('nueva_contrasena'),
         ],
+        'institucional' => [
+            'nombre' => app(\App\Services\ConfiguracionService::class)->get('institucional_nombre_entidad', 'Consultorio Jurídico Judigest'),
+            'correo' => app(\App\Services\ConfiguracionService::class)->get('institucional_correo_notificaciones', 'notificaciones@judigest.gob'),
+            'telefono' => app(\App\Services\ConfiguracionService::class)->get('institucional_telefono_contacto', '+57 (601) 320-0000'),
+            'dias_habiles' => app(\App\Services\ConfiguracionService::class)->get('institucional_dias_habiles', 'Lunes a Viernes'),
+        ],
     ]);
 }
 }

@@ -11,13 +11,19 @@ const props = defineProps({
   practicantes: {
     type: Array,
     default: () => []
+  },
+  tiposProceso: {
+    type: Array,
+    default: () => ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']
   }
 });
 
 
 const form = useForm({
     cliente: '',
-    tipo_proceso: 'Civil', // Default
+    tipo_proceso: props.tiposProceso && props.tiposProceso.length > 0
+        ? (props.tiposProceso.includes('Civil') ? 'Civil' : props.tiposProceso[0])
+        : 'Civil',
     asesor_id: '',
     practicante_id: '',
     fecha_ingreso: '',
@@ -65,11 +71,9 @@ const submit = () => {
               <div class="input-grupo">
                 <Gavel class="input-ico" />
                 <select class="input-select" v-model="form.tipo_proceso">
-                  <option value="Civil">Civil</option>
-                  <option value="Penal">Penal</option>
-                  <option value="Laboral">Laboral</option>
-                  <option value="Familia">Familia</option>
-                  <option value="Administrativo">Administrativo</option>
+                  <option v-for="tipo in tiposProceso" :key="tipo" :value="tipo">
+                    {{ tipo }}
+                  </option>
                 </select>
               </div>
               <span class="error-msg" v-if="form.errors.tipo_proceso">{{ form.errors.tipo_proceso }}</span>

@@ -8,6 +8,10 @@ const props = defineProps({
   usuarios: {
     type: Array,
     default: () => []
+  },
+  longitudMinimaPassword: {
+    type: Number,
+    default: 8
   }
 });
 
@@ -76,8 +80,9 @@ const abrirModalContrasena = (usuario) => {
 };
 
 const guardarNuevaContrasena = () => {
-  if (nuevaContrasenaManual.value.length < 8) {
-    errorContrasena.value = 'La contraseña debe tener al menos 8 caracteres.';
+  const minLen = props.longitudMinimaPassword || 8;
+  if (nuevaContrasenaManual.value.length < minLen) {
+    errorContrasena.value = `La contraseña debe tener al menos ${minLen} caracteres.`;
     return;
   }
   
@@ -218,7 +223,7 @@ const confirmarEliminarUsuario = (usuario) => {
         <p class="modal-desc">Ingresa la nueva contraseña para <strong>{{ usuarioSeleccionado?.nombre }} {{ usuarioSeleccionado?.apellido }}</strong>.</p>
         
         <div class="form-group" style="margin-bottom: 20px;">
-          <label style="display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px;">Nueva Contraseña</label>
+          <label style="display: block; font-size: 13px; font-weight: 500; color: #475569; margin-bottom: 6px;">Nueva Contraseña (Mínimo {{ longitudMinimaPassword }} caracteres)</label>
           <input type="password" v-model="nuevaContrasenaManual" class="input-form" placeholder="••••••••" autocomplete="new-password" @keydown.enter="guardarNuevaContrasena" />
           <p v-if="errorContrasena" style="color: #EF4444; font-size: 12px; margin-top: 6px; margin-bottom: 0;">{{ errorContrasena }}</p>
         </div>

@@ -123,7 +123,24 @@ Route::middleware('auth')->group(function () {
         }
 
         if ($user->rol === 'asesor') {
-            return Inertia::render('AsesorDashboard');
+            $diasAlerta = (int) app(\App\Services\ConfiguracionService::class)->get('expedientes_dias_alerta_inactividad', 15);
+            $casosAsesor = Expediente::where('asesor_id', $user->id)->get();
+            $casosActivos = $casosAsesor->whereNotIn('estado', ['Cerrado', 'Archivado']);
+            $casosSinActividad = $casosActivos->filter(function ($exp) use ($diasAlerta) {
+                return $exp->updated_at && $exp->updated_at->diffInDays(now()) >= $diasAlerta;
+            })->count();
+            $practicantesAsignados = $casosActivos->pluck('practicante_id')->filter()->unique()->count();
+
+            return Inertia::render('AsesorDashboard', [
+                'estadisticas' => [
+                    'casosActivos' => $casosActivos->count(),
+                    'practicantesAsignados' => $practicantesAsignados,
+                    'casosSinActividad' => $casosSinActividad,
+                    'documentosPendientes' => 0,
+                ],
+                'proximasAudiencias' => [],
+                'practicantes' => [],
+            ]);
         }
 
         if ($user->rol === 'practicante') {

@@ -36,6 +36,16 @@ const props = defineProps({
     asesores: {
         type: Array,
         default: () => []
+    },
+
+    tiposProceso: {
+        type: Array,
+        default: () => ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']
+    },
+
+    diasAlertaInactividad: {
+        type: Number,
+        default: 15
     }
 });
 
@@ -367,24 +377,12 @@ const exportarExcel = () => {
                                 Todos
                             </option>
 
-                            <option value="Civil">
-                                Civil
-                            </option>
-
-                            <option value="Penal">
-                                Penal
-                            </option>
-
-                            <option value="Laboral">
-                                Laboral
-                            </option>
-
-                            <option value="Familia">
-                                Familia
-                            </option>
-
-                            <option value="Administrativo">
-                                Administrativo
+                            <option
+                                v-for="tipo in tiposProceso"
+                                :key="tipo"
+                                :value="tipo"
+                            >
+                                {{ tipo }}
                             </option>
                         </select>
                     </div>
@@ -508,6 +506,14 @@ const exportarExcel = () => {
                                             class="font-semibold text-slate-800"
                                         >
                                             {{ exp.numero_expediente }}
+                                        </span>
+
+                                        <span
+                                            v-if="exp.alerta_inactividad"
+                                            class="px-1.5 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded border border-amber-300 ml-1"
+                                            :title="`Sin movimiento reciente (> ${diasAlertaInactividad} días)`"
+                                        >
+                                            ⚠️ Inactivo
                                         </span>
 
                                     </div>
