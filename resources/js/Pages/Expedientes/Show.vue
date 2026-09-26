@@ -27,6 +27,13 @@ const props = defineProps({
     expediente: {
         type: Object,
         required: true
+    },
+    configuracionDocumentos: {
+        type: Object,
+        default: () => ({
+            maxTamanoMb: 10,
+            formatosPermitidos: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']
+        })
     }
 });
 
@@ -101,8 +108,10 @@ const errorArchivo = ref('');
 const errorServidor = ref('');
 const alertaExitoVisible = ref(true);
 
-const formatosPermitidos = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg'];
-const maxTamanoBytes = 10 * 1024 * 1024; // 10 MB
+const formatosPermitidos = computed(() => props.configuracionDocumentos?.formatosPermitidos || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']);
+const maxTamanoMb = computed(() => props.configuracionDocumentos?.maxTamanoMb || 10);
+const maxTamanoBytes = computed(() => maxTamanoMb.value * 1024 * 1024);
+const acceptFormatos = computed(() => formatosPermitidos.value.map(ext => `.${ext}`).join(','));
 
 const seleccionarArchivo = (event) => {
     errorArchivo.value = '';
@@ -118,16 +127,16 @@ const seleccionarArchivo = (event) => {
     const nombre = file.name;
     const extension = nombre.includes('.') ? nombre.split('.').pop().toLowerCase() : '';
 
-    if (!formatosPermitidos.includes(extension)) {
-        errorArchivo.value = `Formato no permitido (.${extension || 'desconocido'}). Solo se permiten archivos PDF, Word (DOC, DOCX), Excel (XLS, XLSX) o imágenes (PNG, JPG, JPEG).`;
+    if (!formatosPermitidos.value.includes(extension)) {
+        errorArchivo.value = `Formato no permitido (.${extension || 'desconocido'}). Solo se autorizan formatos: ${formatosPermitidos.value.join(', ').toUpperCase()}.`;
         archivo.value = null;
         event.target.value = '';
         return;
     }
 
-    if (file.size > maxTamanoBytes) {
+    if (file.size > maxTamanoBytes.value) {
         const pesoMB = (file.size / (1024 * 1024)).toFixed(2);
-        errorArchivo.value = `El archivo supera el tamaño máximo permitido de 10 MB (peso detectado: ${pesoMB} MB).`;
+        errorArchivo.value = `El archivo supera el tamaño máximo permitido de ${maxTamanoMb.value} MB (peso detectado: ${pesoMB} MB).`;
         archivo.value = null;
         event.target.value = '';
         return;
@@ -685,7 +694,7 @@ const eliminarDocumento = (documento) => {
                                     Subir documento al expediente
                                 </strong>
                                 <span>
-                                    Formatos permitidos: PDF, Word (DOC, DOCX), Excel (XLS, XLSX) o imágenes (PNG, JPG, JPEG). Máximo 10 MB.
+                                    Formatos permitidos: {{ formatosPermitidos.join(', ').toUpperCase() }}. Máximo {{ maxTamanoMb }} MB.
                                 </span>
                             </div>
                         </div>
@@ -703,7 +712,7 @@ const eliminarDocumento = (documento) => {
                             <input
                                 id="documento-input"
                                 type="file"
-                                accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                                :accept="acceptFormatos"
                                 :disabled="subiendo"
                                 @change="seleccionarArchivo"
                             />

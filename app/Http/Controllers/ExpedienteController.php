@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
 use App\Services\HistorialExpedienteService;
 use App\Services\ConfiguracionService;
 use App\Services\AuditoriaService;
+use Illuminate\Validation\Rule;
 
 class ExpedienteController extends Controller
 {
@@ -98,6 +99,17 @@ class ExpedienteController extends Controller
 
         $expedientes = $query->get();
 
+        $configService = app(ConfiguracionService::class);
+        $tiposProceso = $configService->get('expedientes_tipos_proceso', ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']);
+        $diasAlerta = (int) $configService->get('expedientes_dias_alerta_inactividad', 15);
+
+        // Marcar expedientes con alerta de inactividad
+        $expedientes->each(function ($exp) use ($diasAlerta) {
+            $exp->alerta_inactividad = !in_array($exp->estado, ['Cerrado', 'Archivado'], true)
+                && $exp->updated_at
+                && $exp->updated_at->diffInDays(now()) >= $diasAlerta;
+        });
+
         $asesores = Usuario::where('rol', 'asesor')
             ->orderBy('nombre')
             ->orderBy('apellido')
@@ -106,6 +118,8 @@ class ExpedienteController extends Controller
         return Inertia::render('Expedientes/Index', [
             'expedientes' => $expedientes,
             'asesores' => $asesores,
+            'tiposProceso' => $tiposProceso,
+            'diasAlertaInactividad' => $diasAlerta,
         ]);
     }
 
@@ -123,22 +137,29 @@ class ExpedienteController extends Controller
             ->orderBy('apellido')
             ->get();
 
+        $tiposProceso = app(ConfiguracionService::class)->get('expedientes_tipos_proceso', ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']);
+
         return Inertia::render('Expedientes/Create', [
             'asesores' => $asesores,
-            'practicantes' => $practicantes
+            'practicantes' => $practicantes,
+            'tiposProceso' => $tiposProceso,
         ]);
     }
 
     public function store(Request $request)
     {
+        $tiposHabilitados = app(ConfiguracionService::class)->get('expedientes_tipos_proceso', ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']);
+
         $data = $request->validate([
             'cliente' => 'required|string|max:150',
-            'tipo_proceso' => 'required|in:Civil,Penal,Laboral,Familia,Administrativo',
+            'tipo_proceso' => ['required', Rule::in($tiposHabilitados)],
             'asesor_id' => 'required|integer|exists:usuarios,id',
             'practicante_id' => 'nullable|integer|exists:usuarios,id',
             'fecha_ingreso' => 'required|date',
             'descripcion' => 'nullable|string|max:5000',
             'estado' => 'nullable|in:Abierto,En Proceso,Resuelto,Cerrado,Archivado',
+        ], [
+            'tipo_proceso.in' => 'La materia jurídica seleccionada no está habilitada en la configuración del sistema.',
         ]);
 
         $prefijo = app(ConfiguracionService::class)->get('expedientes_prefijo', 'EXP');
@@ -179,6 +200,7 @@ class ExpedienteController extends Controller
         $data['creado_por'] = Auth::id();
         $data['estado'] = $data['estado'] ?? 'Abierto';
 
+        $expediente = null;
         DB::transaction(function () use ($data, &$expediente) {
             $expediente = Expediente::create($data);
 
@@ -223,9 +245,21 @@ class ExpedienteController extends Controller
             ->orderBy('apellido')
             ->get();
 
+        $tiposHabilitados = app(ConfiguracionService::class)->get('expedientes_tipos_proceso', ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']);
+        if ($expediente->tipo_proceso && !in_array($expediente->tipo_proceso, $tiposHabilitados, true)) {
+            $tiposHabilitados[] = $expediente->tipo_proceso;
+        }
+
+        $configDocs = [
+            'maxTamanoMb' => (int) app(ConfiguracionService::class)->get('documentos_max_tamano_mb', 10),
+            'formatosPermitidos' => array_values(array_filter(array_map('trim', explode(',', (string) app(ConfiguracionService::class)->get('documentos_formatos_permitidos', 'pdf,doc,docx,xls,xlsx,png,jpg,jpeg'))))),
+        ];
+
         return Inertia::render('Expedientes/Edit', [
             'expediente' => $expediente,
             'asesores' => $asesores,
+            'tiposProceso' => $tiposHabilitados,
+            'configuracionDocumentos' => $configDocs,
         ]);
     }
 
@@ -237,10 +271,13 @@ class ExpedienteController extends Controller
             'Solo el Secretario puede editar expedientes.'
         );
 
+        $tiposHabilitados = app(ConfiguracionService::class)->get('expedientes_tipos_proceso', ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']);
+        $tiposPermitidos = array_unique(array_merge($tiposHabilitados, [$expediente->tipo_proceso]));
+
         $data = $request->validate([
             'numero_expediente' => 'required|string|max:50|unique:expedientes,numero_expediente,' . $expediente->id,
             'cliente' => 'required|string|max:150',
-            'tipo_proceso' => 'required|in:Civil,Penal,Laboral,Familia,Administrativo',
+            'tipo_proceso' => ['required', Rule::in($tiposPermitidos)],
             'asesor_id' => 'required|integer|exists:usuarios,id',
             'practicante_id' => 'nullable|integer|exists:usuarios,id',
             'fecha_ingreso' => 'required|date',
@@ -251,6 +288,7 @@ class ExpedienteController extends Controller
             'numero_expediente.unique' => 'Este número de expediente ya existe en el sistema.',
             'cliente.required' => 'La información del cliente es obligatoria.',
             'tipo_proceso.required' => 'El tipo de proceso es obligatorio.',
+            'tipo_proceso.in' => 'La materia jurídica seleccionada no es válida o no está habilitada.',
             'asesor_id.required' => 'Debe asignar un asesor responsable.',
             'asesor_id.exists' => 'El asesor seleccionado no es válido.',
             'fecha_ingreso.required' => 'La fecha de ingreso es obligatoria.',
@@ -468,7 +506,7 @@ class ExpedienteController extends Controller
         );
     }
 
-    public function archivar(Expediente $expediente)
+    public function archivar(Request $request, Expediente $expediente)
     {
         abort_unless(
             Auth::user()?->rol === 'secretario',
@@ -548,8 +586,14 @@ class ExpedienteController extends Controller
             'documentos.usuario',
         ]);
 
+        $configDocs = [
+            'maxTamanoMb' => (int) app(ConfiguracionService::class)->get('documentos_max_tamano_mb', 10),
+            'formatosPermitidos' => array_values(array_filter(array_map('trim', explode(',', (string) app(ConfiguracionService::class)->get('documentos_formatos_permitidos', 'pdf,doc,docx,xls,xlsx,png,jpg,jpeg'))))),
+        ];
+
         return Inertia::render('Expedientes/Show', [
             'expediente' => $expediente,
+            'configuracionDocumentos' => $configDocs,
         ]);
     }
 

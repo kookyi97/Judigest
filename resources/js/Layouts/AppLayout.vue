@@ -16,7 +16,8 @@ import {
 } from 'lucide-vue-next';
 
 const { props } = usePage();
-const usuario = computed(() => props.auth.usuario);
+const usuario = computed(() => props.auth?.usuario);
+const nombreEntidad = computed(() => props.institucional?.nombre || 'Judigest');
 
 const dropdownAbierto = ref(false);
 const toggleDropdown = () => {
@@ -55,7 +56,7 @@ const menuItems = computed(() => {
           <Scale class="logo-icon" />
         </div>
         <div class="brand-text">
-          <span class="brand-title">Judigest</span>
+          <span class="brand-title" :title="nombreEntidad">{{ nombreEntidad }}</span>
           <span class="brand-subtitle">Gestión Judicial</span>
         </div>
       </div>

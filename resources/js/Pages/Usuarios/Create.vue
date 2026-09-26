@@ -4,6 +4,13 @@ import { useForm, Head } from '@inertiajs/vue3';
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { User, Mail, Shield, Activity, Save, X, AlertTriangle, Lock } from 'lucide-vue-next';
 
+const props = defineProps({
+  longitudMinimaPassword: {
+    type: Number,
+    default: 8
+  }
+});
+
 const roles = ['Administrador', 'Secretario', 'Asesor', 'Practicante'];
 
 const form = useForm({
@@ -134,7 +141,7 @@ const submit = () => {
             <div class="campos-fila">
               <!-- Campo Contraseña -->
               <div class="campo campo--mitad" :class="{'has-error': form.errors.contrasena}">
-                <label class="campo__label">Contraseña</label>
+                <label class="campo__label">Contraseña (Mínimo {{ longitudMinimaPassword }} caracteres)</label>
                 <div class="input-grupo">
                   <Lock class="input-ico" />
                   <input type="password" class="input-text" v-model="form.contrasena" placeholder="••••••••" />
