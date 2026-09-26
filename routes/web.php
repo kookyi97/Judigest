@@ -30,136 +30,175 @@ Route::middleware('auth')->group(function () {
         $user = auth()->user();
 
         if ($user->rol === 'administrador') {
-            $usuarios = Usuario::all();
-
-            $expedientesActivos = Expediente::whereNotIn('estado', [
-                'Cerrado',
-                'Archivado'
-            ])->count();
+            $usuarios           = Usuario::all();
+            $expedientesActivos = Expediente::whereNotIn('estado', ['Cerrado','Archivado'])->count();
 
             $usuariosPorRol = [
-                [
-                    'nombre' => 'Administrador',
-                    'total' => $usuarios->where('rol', 'administrador')->count()
-                ],
-                [
-                    'nombre' => 'Secretario',
-                    'total' => $usuarios->where('rol', 'secretario')->count()
-                ],
-                [
-                    'nombre' => 'Asesor',
-                    'total' => $usuarios->where('rol', 'asesor')->count()
-                ],
-                [
-                    'nombre' => 'Practicante',
-                    'total' => $usuarios->where('rol', 'practicante')->count()
-                ],
+                ['nombre' => 'Administrador', 'total' => $usuarios->where('rol','administrador')->count()],
+                ['nombre' => 'Secretario',    'total' => $usuarios->where('rol','secretario')->count()],
+                ['nombre' => 'Asesor',        'total' => $usuarios->where('rol','asesor')->count()],
+                ['nombre' => 'Practicante',   'total' => $usuarios->where('rol','practicante')->count()],
             ];
-
             $totalUsuarios = $usuarios->count();
-
             if ($totalUsuarios > 0) {
                 foreach ($usuariosPorRol as &$r) {
-                    $r['porcentaje'] = round(
-                        ($r['total'] / $totalUsuarios) * 100
-                    );
+                    $r['porcentaje'] = round(($r['total'] / $totalUsuarios) * 100);
                 }
                 unset($r);
             }
 
-            $auditoriaService = app(AuditoriaService::class);
+            $auditoriaService = app(\App\Services\AuditoriaService::class);
+
+            // Audiencias este mes para el admin
+            $audienciasEsteMes = \App\Models\Audiencia::whereMonth('fecha', now()->month)
+                ->whereYear('fecha', now()->year)
+                ->count();
 
             return Inertia::render('AdminDashboard', [
-                'usuarios' => $usuarios,
-                'rolesDisponibles' => [
-                    'administrador',
-                    'secretario',
-                    'asesor',
-                    'practicante'
-                ],
-                'estadisticas' => [
+                'usuarios'          => $usuarios,
+                'rolesDisponibles'  => ['administrador','secretario','asesor','practicante'],
+                'estadisticas'      => [
                     'expedientesActivos' => $expedientesActivos,
-                    'usuariosActivos' => $usuarios->where('activo', true)->count(),
-                    'audienciasEsteMes' => 0,
-                    'accionesHoy' => $auditoriaService->totalAccionesHoy()
+                    'usuariosActivos'    => $usuarios->where('activo', true)->count(),
+                    'audienciasEsteMes'  => $audienciasEsteMes,
+                    'accionesHoy'        => $auditoriaService->totalAccionesHoy(),
                 ],
-                'usuariosPorRol' => $usuariosPorRol,
-                'ultimasActividades' => $auditoriaService->ultimasActividades(6)
+                'usuariosPorRol'     => $usuariosPorRol,
+                'ultimasActividades' => $auditoriaService->ultimasActividades(6),
             ]);
         }
 
         if ($user->rol === 'secretario') {
-            $ultimosExpedientes = Expediente::orderBy(
-                'updated_at',
-                'desc'
-            )
+            $ultimosExpedientes = Expediente::orderBy('updated_at','desc')
                 ->take(5)
                 ->get()
-                ->map(function ($exp) {
-                    return [
-                        'id' => $exp->id,
-                        'numero' => $exp->numero_expediente,
-                        'nombre' => $exp->cliente,
-                        'tipo' => $exp->tipo_proceso,
-                        'estado' => $exp->estado,
-                        'modificado' => $exp->updated_at
-                            ? $exp->updated_at->diffForHumans()
-                            : 'N/A'
-                    ];
-                });
+                ->map(fn($exp) => [
+                    'id'         => $exp->id,
+                    'numero'     => $exp->numero_expediente,
+                    'nombre'     => $exp->cliente,
+                    'tipo'       => $exp->tipo_proceso,
+                    'estado'     => strtolower(str_replace(' ', '_', $exp->estado ?? 'pendiente')),
+                    'modificado' => $exp->updated_at?->diffForHumans() ?? 'N/A',
+                ]);
+
+            // Audiencias de esta semana (lunes a domingo)
+            $inicioSemana = now()->startOfWeek();
+            $finSemana    = now()->endOfWeek();
+
+            $audienciasEstaSemana = \App\Models\Audiencia::whereBetween('fecha', [$inicioSemana, $finSemana])
+                ->where('estado', 'programada')
+                ->count();
+
+            // Próximas audiencias para mostrar en el panel
+            $proximasAudiencias = \App\Models\Audiencia::with(['expediente.practicante'])
+                ->where('estado', 'programada')
+                ->where('fecha', '>=', now()->toDateString())
+                ->orderBy('fecha')
+                ->orderBy('hora')
+                ->take(5)
+                ->get()
+                ->map(fn($a) => [
+                    'expediente' => $a->expediente->numero_expediente ?? '',
+                    'hora'       => substr($a->hora, 0, 5),
+                    'sala'       => $a->sala_juzgado,
+                    'dia'        => $a->fecha->format('d'),
+                    'mes'        => strtoupper(substr(['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'][$a->fecha->month - 1], 0, 3)),
+                    'practicante'=> $a->expediente->practicante
+                        ? $a->expediente->practicante->nombre . ' ' . $a->expediente->practicante->apellido
+                        : 'Sin practicante',
+                ]);
 
             return Inertia::render('SecretarioDashboard', [
                 'ultimosExpedientes' => $ultimosExpedientes,
-                'estadisticas' => [
-                    'audienciasEstaSemana' => 0,
-                    'expedientesAbiertos' => Expediente::whereNotIn(
-                        'estado',
-                        ['Cerrado', 'Archivado']
-                    )->count(),
-                    'casosSinPracticante' => 0,
-                    'notificacionesPendientes' => 0
-                ]
+                'proximasAudiencias' => $proximasAudiencias,
+                'estadisticas'       => [
+                    'audienciasEstaSemana'     => $audienciasEstaSemana,
+                    'expedientesAbiertos'      => Expediente::whereNotIn('estado', ['Cerrado','Archivado'])->count(),
+                    'casosSinPracticante'      => Expediente::whereNull('practicante_id')->whereNotIn('estado', ['Cerrado','Archivado'])->count(),
+                    'notificacionesPendientes' => 0,
+                ],
             ]);
         }
 
         if ($user->rol === 'asesor') {
-            return Inertia::render('AsesorDashboard');
+            // Próximas audiencias solo de sus casos
+            $proximasAudiencias = \App\Models\Audiencia::with(['expediente.practicante'])
+                ->whereHas('expediente', fn($q) => $q->where('asesor_id', $user->id))
+                ->where('estado', 'programada')
+                ->where('fecha', '>=', now()->toDateString())
+                ->orderBy('fecha')
+                ->orderBy('hora')
+                ->take(5)
+                ->get()
+                ->map(fn($a) => [
+                    'expediente'  => $a->expediente->numero_expediente ?? '',
+                    'tipo'        => $a->tipo_audiencia,
+                    'hora'        => substr($a->hora, 0, 5),
+                    'sala'        => $a->sala_juzgado,
+                    'practicante' => $a->expediente->practicante
+                        ? $a->expediente->practicante->nombre . ' ' . $a->expediente->practicante->apellido
+                        : 'Sin practicante',
+                ]);
+
+            $casosActivos = Expediente::where('asesor_id', $user->id)
+                ->whereNotIn('estado', ['Cerrado','Archivado'])
+                ->count();
+
+            $audienciasProximas = \App\Models\Audiencia::whereHas('expediente', fn($q) => $q->where('asesor_id', $user->id))
+                ->where('estado', 'programada')
+                ->where('fecha', '>=', now()->toDateString())
+                ->count();
+
+            return Inertia::render('AsesorDashboard', [
+                'proximasAudiencias' => $proximasAudiencias,
+                'estadisticas'       => [
+                    'casosActivos'          => $casosActivos,
+                    'practicantesAsignados' => 0,
+                    'casosSinActividad'     => 0,
+                    'documentosPendientes'  => 0,
+                    'proximasAudiencias'    => $audienciasProximas,
+                ],
+                'practicantes' => [],
+            ]);
         }
 
         if ($user->rol === 'practicante') {
             $casos = Expediente::where('practicante_id', $user->id)
-                ->with(['asesor', 'documentos'])
-                ->orderBy('updated_at', 'desc')
+                ->with(['asesor'])
+                ->orderBy('updated_at','desc')
                 ->get();
 
-            $casosAsignados = $casos->map(function ($exp) {
-                return [
-                    'id' => $exp->id,
-                    'numero' => $exp->numero_expediente,
-                    'nombre' => $exp->cliente,
-                    'tipo' => $exp->tipo_proceso,
-                    'estado' => strtolower(str_replace(' ', '_', $exp->estado ?? 'pendiente')),
-                    'estadoLabel' => $exp->estado ?? 'Abierto',
-                    'proximaAudiencia' => 'Sin programar',
-                    'totalDocumentos' => $exp->documentos->count(),
-                ];
-            });
+            $casosAsignados = $casos->map(fn($exp) => [
+                'id'             => $exp->id,
+                'numero'         => $exp->numero_expediente,
+                'nombre'         => $exp->cliente,
+                'tipo'           => $exp->tipo_proceso,
+                'estado'         => strtolower(str_replace(' ', '_', $exp->estado ?? 'pendiente')),
+                'estadoLabel'    => $exp->estado ?? 'Abierto',
+                'proximaAudiencia' => 'Sin programar',
+            ]);
+
+            // Audiencias próximas del practicante
+            $audienciasProximas = \App\Models\Audiencia::whereHas('expediente', fn($q) => $q->where('practicante_id', $user->id))
+                ->where('estado', 'programada')
+                ->where('fecha', '>=', now()->toDateString())
+                ->count();
 
             $primerAsesor = $casos->first()?->asesor;
 
             return Inertia::render('PracticanteDashboard', [
                 'casosAsignados' => $casosAsignados,
-                'asesor' => $primerAsesor ? [
-                    'nombre' => $primerAsesor->nombre,
+                'asesor'         => $primerAsesor ? [
+                    'nombre'   => $primerAsesor->nombre,
                     'apellido' => $primerAsesor->apellido,
                 ] : null,
-                'estadisticas' => [
-                    'casosAsignados' => $casos->count(),
-                    'proximasAudiencias' => 0,
-                    'casosConActividad' => $casos->where('updated_at', '>=', now()->subDays(7))->count(),
+                'estadisticas'   => [
+                    'casosAsignados'         => $casos->count(),
+                    'proximasAudiencias'     => $audienciasProximas,
+                    'casosConActividad'      => $casos->where('updated_at', '>=', now()->subDays(7))->count(),
                     'notificacionesNoLeidas' => 0,
                 ],
-                'notificaciones' => []
+                'notificaciones' => [],
             ]);
         }
 
@@ -322,4 +361,33 @@ Route::middleware('auth')->group(function () {
     )
         ->name('expedientes.show')
         ->middleware('rol:secretario,asesor,practicante');
+
+    Route::get('/audiencias', [App\Http\Controllers\AudienciaController::class, 'index'])
+        ->name('audiencias.index')
+        ->middleware('rol:administrador,secretario,asesor,practicante');
+
+    Route::get('/audiencias/create', [App\Http\Controllers\AudienciaController::class, 'create'])
+        ->name('audiencias.create')
+        ->middleware('rol:secretario');
+
+    Route::post('/audiencias', [App\Http\Controllers\AudienciaController::class, 'store'])
+        ->name('audiencias.store')
+        ->middleware('rol:secretario');
+
+    Route::get('/audiencias/{audiencia}/edit', [App\Http\Controllers\AudienciaController::class, 'edit'])
+        ->name('audiencias.edit')
+        ->middleware('rol:secretario');
+
+    Route::put('/audiencias/{audiencia}', [App\Http\Controllers\AudienciaController::class, 'update'])
+        ->name('audiencias.update')
+        ->middleware('rol:secretario');
+
+    Route::patch('/audiencias/{audiencia}/cancelar', [App\Http\Controllers\AudienciaController::class, 'cancelar'])
+        ->name('audiencias.cancelar')
+        ->middleware('rol:secretario');
+
+    Route::get('/calendario', [App\Http\Controllers\AudienciaController::class, 'calendario'])
+        ->name('calendario.index')
+        ->middleware('rol:administrador,secretario,asesor,practicante');
+
 });
