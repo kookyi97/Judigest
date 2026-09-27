@@ -30,6 +30,9 @@ class AuditoriaService
         // Sanitizamos detalles para nunca persistir contraseñas o tokens
         $detallesSanitizados = $this->sanitizarDetalles($detalles);
 
+        // Marcamos la petición para evitar registros duplicados en el middleware
+        $request?->attributes?->set('auditoria_registrada', true);
+
         return Auditoria::create([
             'usuario_id' => $usuarioAutenticado?->id,
             'usuario_nombre' => $usuarioAutenticado ? "{$usuarioAutenticado->nombre} {$usuarioAutenticado->apellido}" : 'Sistema',

@@ -17,7 +17,7 @@ class RegistrarAuditoriaMiddleware
     }
 
     /**
-     * Maneja la petición entrante y registra automáticamente la autoría de toda acción mutante.
+     * Maneja la petición entrante y registra automáticamente la autoría de toda acción mutante o consulta sensible.
      */
     public function handle(Request $request, Closure $next): Response
     {
@@ -25,8 +25,21 @@ class RegistrarAuditoriaMiddleware
         $response = $next($request);
         $usuario = $request->user() ?? $usuarioAntes;
 
-        // Solo registramos si hay usuario autenticado (antes o después del ciclo) y la petición modifica estado
-        if ($usuario && in_array($request->method(), ['POST', 'PUT', 'PATCH', 'DELETE'], true)) {
+        // Rutas GET de consulta sensible que exigen auditoría (JD010, JD011, JD033, etc.)
+        $rutasGetAuditables = [
+            'auditoria.index',
+            'expedientes.index',
+            'expedientes.show',
+            'expedientes.documentos.index',
+            'expedientes.historial',
+        ];
+
+        $ruta = $request->route() ? $request->route()->getName() : null;
+        $esMutante = in_array($request->method(), ['POST', 'PUT', 'PATCH', 'DELETE'], true);
+        $esGetAuditable = $request->isMethod('GET') && $ruta && in_array($ruta, $rutasGetAuditables, true);
+
+        // Solo registramos si hay usuario autenticado y la petición es mutante o una consulta sensible
+        if ($usuario && ($esMutante || $esGetAuditable)) {
             // Evitamos doble registro si la acción ya fue auditada explícitamente en el ciclo
             if ($request->attributes->get('auditoria_registrada')) {
                 return $response;
@@ -38,7 +51,6 @@ class RegistrarAuditoriaMiddleware
                 return $response;
             }
 
-            $ruta = $request->route() ? $request->route()->getName() : null;
             $uri = $request->path();
 
             [$modulo, $accion, $descripcion] = $this->deducirDetallesAccion($request, $ruta, $uri, $usuario);
@@ -56,9 +68,24 @@ class RegistrarAuditoriaMiddleware
             } elseif ($doc = $request->route('documento')) {
                 $entidadTipo = 'Documento';
                 $entidadId = is_object($doc) ? $doc->id : (is_numeric($doc) ? (int) $doc : null);
+            } elseif ($aud = $request->route('audiencia')) {
+                $entidadTipo = 'Audiencia';
+                $entidadId = is_object($aud) ? $aud->id : (is_numeric($aud) ? (int) $aud : null);
             }
 
             $resultado = $response->getStatusCode() < 400 ? 'exitoso' : 'fallido';
+
+            $detalles = [
+                'metodo' => $request->method(),
+                'ruta' => $ruta,
+                'uri' => $uri,
+                'status_code' => $response->getStatusCode(),
+            ];
+
+            // Si es consulta GET con parámetros de búsqueda/filtros, los anexamos a los detalles
+            if ($request->isMethod('GET') && !empty($request->query())) {
+                $detalles['filtros_aplicados'] = array_filter($request->query());
+            }
 
             // Registramos con datos inmutables tomados directamente del servidor
             $this->auditoriaService->registrar(
@@ -67,12 +94,7 @@ class RegistrarAuditoriaMiddleware
                 descripcion: $descripcion,
                 entidadTipo: $entidadTipo,
                 entidadId: $entidadId,
-                detalles: [
-                    'metodo' => $request->method(),
-                    'ruta' => $ruta,
-                    'uri' => $uri,
-                    'status_code' => $response->getStatusCode(),
-                ],
+                detalles: $detalles,
                 resultado: $resultado,
                 request: $request,
                 usuario: $usuario
@@ -93,6 +115,11 @@ class RegistrarAuditoriaMiddleware
         $mapaRutas = [
             'login.procesar' => ['Autenticación', 'Inicio de Sesión', "El usuario {$usuarioNombre} inició sesión en la plataforma."],
             'logout' => ['Autenticación', 'Cierre de Sesión', "El usuario {$usuarioNombre} cerró su sesión."],
+            'auditoria.index' => ['Auditoría', 'Consulta de Bitácora', "El usuario {$usuarioNombre} consultó la bitácora de auditoría del sistema."],
+            'expedientes.index' => ['Expedientes', 'Consulta de Expedientes', "El usuario {$usuarioNombre} consultó el listado de expedientes."],
+            'expedientes.show' => ['Expedientes', 'Consulta de Expediente', "El usuario {$usuarioNombre} visualizó el detalle de un expediente."],
+            'expedientes.historial' => ['Expedientes', 'Consulta de Historial', "El usuario {$usuarioNombre} consultó el historial de un expediente."],
+            'expedientes.documentos.index' => ['Documentos', 'Consulta de Documentos', "El usuario {$usuarioNombre} consultó los documentos anexos de un expediente."],
             'expedientes.store' => ['Expedientes', 'Crear Expediente', "El usuario {$usuarioNombre} registró un nuevo expediente."],
             'expedientes.update' => ['Expedientes', 'Actualizar Expediente', "El usuario {$usuarioNombre} modificó los datos de un expediente."],
             'expedientes.estado' => ['Expedientes', 'Cambiar Estado de Expediente', "El usuario {$usuarioNombre} actualizó el estado de un expediente."],
@@ -105,7 +132,9 @@ class RegistrarAuditoriaMiddleware
             'admin.usuarios.updateRol' => ['Usuarios', 'Modificar Rol de Usuario', "El usuario {$usuarioNombre} cambió el rol de acceso a un usuario."],
             'admin.usuarios.resetPassword' => ['Usuarios', 'Restablecer Contraseña', "El usuario {$usuarioNombre} restableció las credenciales de un usuario."],
             'configuracion.update' => ['Configuración', 'Actualizar Parámetros Globales', "El usuario {$usuarioNombre} modificó los parámetros del sistema."],
-            'logout' => ['Autenticación', 'Cierre de Sesión', "El usuario {$usuarioNombre} cerró su sesión."],
+            'audiencias.store' => ['Audiencias', 'Programar Audiencia', "El usuario {$usuarioNombre} programó una nueva audiencia."],
+            'audiencias.update' => ['Audiencias', 'Actualizar Audiencia', "El usuario {$usuarioNombre} modificó una audiencia."],
+            'audiencias.cancelar' => ['Audiencias', 'Cancelar Audiencia', "El usuario {$usuarioNombre} canceló una audiencia."],
         ];
 
         if ($ruta && isset($mapaRutas[$ruta])) {
@@ -121,12 +150,15 @@ class RegistrarAuditoriaMiddleware
             $modulo = 'Configuración';
         } elseif (str_starts_with($uri, 'documentos')) {
             $modulo = 'Documentos';
+        } elseif (str_starts_with($uri, 'audiencias') || str_starts_with($uri, 'calendario')) {
+            $modulo = 'Audiencias';
         } else {
             $modulo = 'Sistema';
         }
 
         $metodo = $request->method();
         $accionVerbo = match ($metodo) {
+            'GET' => 'Consulta / Visualización',
             'POST' => 'Creación / Registro',
             'PUT', 'PATCH' => 'Modificación / Actualización',
             'DELETE' => 'Eliminación',
