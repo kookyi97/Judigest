@@ -18,7 +18,9 @@ import {
     Plus,
     Edit,
     Archive,
-    ShieldCheck
+    ShieldCheck,
+    UserPlus,
+    Repeat
 } from 'lucide-vue-next';
 
 defineProps({
@@ -68,7 +70,9 @@ const iconoAccion = (accion) => {
         CARGA_DOCUMENTO: Upload,
         DESCARGA_DOCUMENTO: FileText,
         ELIMINACION_DOCUMENTO: Trash2,
-        ARCHIVADO_EXPEDIENTE: Archive
+        ARCHIVADO_EXPEDIENTE: Archive,
+        ASIGNACION_PRACTICANTE: UserPlus,
+        REASIGNACION_PRACTICANTE: Repeat
     };
 
     return iconos[accion] || History;
@@ -82,7 +86,9 @@ const etiquetaAccion = (accion) => {
         CARGA_DOCUMENTO: 'Carga de documento',
         DESCARGA_DOCUMENTO: 'Descarga de documento',
         ELIMINACION_DOCUMENTO: 'Eliminación de documento',
-        ARCHIVADO_EXPEDIENTE: 'Expediente archivado'
+        ARCHIVADO_EXPEDIENTE: 'Expediente archivado',
+        ASIGNACION_PRACTICANTE: 'Asignación de practicante',
+        REASIGNACION_PRACTICANTE: 'Reasignación de practicante'
     };
 
     return etiquetas[accion] || accion;

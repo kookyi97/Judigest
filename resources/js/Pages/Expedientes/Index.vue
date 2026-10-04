@@ -4,6 +4,7 @@ import AppLayout from '@/Layouts/AppLayout.vue';
 import {
     Head,
     Link,
+    router,
     usePage,
     useForm
 } from '@inertiajs/vue3';
@@ -24,7 +25,9 @@ import {
 
 import {
     computed,
-    ref
+    ref,
+    onMounted,
+    onUnmounted
 } from 'vue';
 
 const props = defineProps({
@@ -46,6 +49,12 @@ const props = defineProps({
     diasAlertaInactividad: {
         type: Number,
         default: 15
+    },
+
+    // Huella del listado: permite detectar cambios sin recargar todo
+    versionListado: {
+        type: String,
+        default: ''
     }
 });
 
@@ -68,8 +77,45 @@ const puedeExportar = computed(() =>
 );
 
 const puedeVerDetalle = computed(() =>
-    ['administrador', 'secretario', 'asesor', 'practicante'].includes(rol.value)
+        ['administrador', 'secretario', 'asesor', 'practicante'].includes(rol.value)
 );
+
+const esAsesor = computed(() =>
+    rol.value === 'asesor'
+);
+
+const esPracticante = computed(() =>
+    rol.value === 'practicante'
+);
+
+// Asesor y practicante ya están limitados por el servidor: el filtro por asesor no les aplica.
+const veFiltroAsesor = computed(() =>
+    ['administrador', 'secretario'].includes(rol.value)
+);
+
+const tituloPagina = computed(() => {
+    if (esAsesor.value) return 'Expedientes bajo mi supervisión';
+    if (esPracticante.value) return 'Mis expedientes asignados';
+    return 'Gestión de Expedientes';
+});
+
+const subtituloPagina = computed(() => {
+    if (esAsesor.value) return 'Estado y avance de los casos que supervisas';
+    if (esPracticante.value) return 'Casos que tu asesor te ha asignado';
+    return 'Administra y consulta los procesos jurídicos activos';
+});
+
+const textoSinExpedientes = computed(() => {
+    if (esAsesor.value) return 'No tienes expedientes bajo tu supervisión';
+    if (esPracticante.value) return 'No tienes expedientes asignados';
+    return 'No hay expedientes registrados';
+});
+
+const descripcionSinExpedientes = computed(() => {
+    if (esAsesor.value) return 'Cuando se te asigne un expediente aparecerá en este listado.';
+    if (esPracticante.value) return 'Cuando tu asesor te asigne un caso aparecerá en este listado.';
+    return 'Aún no se ha ingresado ningún caso al sistema.';
+});
 
 const buscar = ref('');
 const filtroTipo = ref('');
@@ -235,6 +281,68 @@ const estadoClass = (estado) => {
     }
 };
 
+/*
+|--------------------------------------------------------------------------
+| ACTUALIZACIÓN AUTOMÁTICA DEL LISTADO
+|--------------------------------------------------------------------------
+| Cada 30 s se consulta una huella liviana. El listado completo solo se
+| vuelve a pedir si la huella cambió, así no se genera tráfico ni registros
+| de auditoría innecesarios.
+*/
+const INTERVALO_REFRESCO_MS = 30000;
+let temporizador = null;
+
+const hayModalAbierto = () =>
+    mostrarEstadoModal.value || mostrarArchivoModal.value;
+
+const comprobarCambios = async () => {
+    if (document.hidden || hayModalAbierto()) {
+        return;
+    }
+
+    try {
+        const respuesta = await fetch('/expedientes/version', {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            credentials: 'same-origin'
+        });
+
+        if (!respuesta.ok) {
+            return;
+        }
+
+        const { version } = await respuesta.json();
+
+        if (version !== props.versionListado) {
+            router.reload({
+                only: ['expedientes', 'versionListado'],
+                preserveScroll: true,
+                preserveState: true
+            });
+        }
+    } catch {
+        // Sin conexión: se reintenta en el siguiente ciclo.
+    }
+};
+
+const alCambiarVisibilidad = () => {
+    if (!document.hidden) {
+        comprobarCambios();
+    }
+};
+
+onMounted(() => {
+    temporizador = window.setInterval(comprobarCambios, INTERVALO_REFRESCO_MS);
+    document.addEventListener('visibilitychange', alCambiarVisibilidad);
+});
+
+onUnmounted(() => {
+    window.clearInterval(temporizador);
+    document.removeEventListener('visibilitychange', alCambiarVisibilidad);
+});
+
 const exportarExcel = () => {
     const params = new URLSearchParams();
 
@@ -281,13 +389,13 @@ const exportarExcel = () => {
         <div class="db">
 
             <div class="db__header">
-                <div>
+                 <div>
                     <h1 class="db__titulo">
-                        Gestión de Expedientes
+                        {{ tituloPagina }}
                     </h1>
 
                     <p class="db__sub">
-                        Administra y consulta los procesos jurídicos activos
+                        {{ subtituloPagina }}
                     </p>
                 </div>
 
@@ -417,9 +525,9 @@ const exportarExcel = () => {
                                 Archivado
                             </option>
                         </select>
-                    </div>
+                     </div>
 
-                    <div class="filtro">
+                    <div v-if="veFiltroAsesor" class="filtro">
                         <label>
                             Asesor
                         </label>
@@ -473,7 +581,9 @@ const exportarExcel = () => {
                                 <th>Cliente</th>
                                 <th>Tipo de Proceso</th>
                                 <th>Estado</th>
+                                <th>Avance</th>
                                 <th>Asesor Asignado</th>
+                                <th v-if="!esPracticante">Practicante</th>
                                 <th>Última Modificación</th>
                                 <th>Acciones</th>
                             </tr>
@@ -540,8 +650,28 @@ const exportarExcel = () => {
                                     </span>
                                 </td>
 
+                                
+                                <td>
+                                    <div
+                                        class="avance"
+                                        :title="`Avance estimado: ${exp.avance}%`"
+                                    >
+                                        <div class="avance__barra">
+                                            <div
+                                                class="avance__relleno"
+                                                :style="{ width: exp.avance + '%' }"
+                                            ></div>
+                                        </div>
+
+                                        <span class="avance__valor">
+                                            {{ exp.avance }}%
+                                        </span>
+                                    </div>
+                                </td>
+
                                 <td>
                                     <div class="flex flex-col">
+
 
                                         <span
                                             class="text-sm font-medium text-slate-700"
@@ -554,6 +684,16 @@ const exportarExcel = () => {
                                         </span>
 
                                     </div>
+                                </td>
+
+                                <td v-if="!esPracticante">
+                                    <span class="text-sm font-medium text-slate-700">
+                                        {{
+                                            exp.practicante
+                                                ? exp.practicante.nombre + ' ' + exp.practicante.apellido
+                                                : 'Sin asignar'
+                                        }}
+                                    </span>
                                 </td>
 
                                 <td>
@@ -646,7 +786,7 @@ const exportarExcel = () => {
                         {{
                             expedientes.length > 0
                                 ? 'No se encontraron expedientes'
-                                : 'No hay expedientes registrados'
+                                : textoSinExpedientes
                         }}
                     </h3>
 
@@ -654,7 +794,7 @@ const exportarExcel = () => {
                         {{
                             expedientes.length > 0
                                 ? 'Prueba modificando los filtros de búsqueda.'
-                                : 'Aún no se ha ingresado ningún caso al sistema.'
+                                : descripcionSinExpedientes
                         }}
                     </p>
                 </div>
@@ -1557,6 +1697,37 @@ const exportarExcel = () => {
 
     .acciones {
         flex-wrap: wrap;
-    }
+        }
+}
+
+/* Barra de avance del expediente */
+.avance {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 110px;
+}
+
+.avance__barra {
+    flex: 1;
+    height: 6px;
+    background: #E2E8F0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.avance__relleno {
+    height: 100%;
+    background: #185FA5;
+    border-radius: 999px;
+    transition: width .3s ease;
+}
+
+.avance__valor {
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    min-width: 34px;
+    text-align: right;
 }
 </style>

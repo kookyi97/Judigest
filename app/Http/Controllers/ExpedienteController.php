@@ -14,19 +14,28 @@ use Illuminate\Support\Facades\DB;
 use App\Services\HistorialExpedienteService;
 use App\Services\ConfiguracionService;
 use App\Services\AuditoriaService;
+use App\Services\AsignacionPracticanteService;
+use App\Services\NotificacionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 
 class ExpedienteController extends Controller
 {
     protected HistorialExpedienteService $historialService;
     protected AuditoriaService $auditoriaService;
+    protected NotificacionService $notificaciones;
+    protected AsignacionPracticanteService $asignaciones;
 
     public function __construct(
         HistorialExpedienteService $historialService,
-        AuditoriaService $auditoriaService
+        AuditoriaService $auditoriaService,
+        NotificacionService $notificaciones,
+        AsignacionPracticanteService $asignaciones
     ) {
         $this->historialService = $historialService;
         $this->auditoriaService = $auditoriaService;
+        $this->notificaciones = $notificaciones;
+        $this->asignaciones = $asignaciones;
     }
 
     private function usuarioAutenticado()
@@ -36,28 +45,8 @@ class ExpedienteController extends Controller
 
     private function puedeAccederExpediente(Expediente $expediente): bool
     {
-        $usuario = $this->usuarioAutenticado();
-
-        if (!$usuario) {
-            return false;
-        }
-
-        // Administrador y secretario pueden acceder a cualquier expediente
-        if (in_array($usuario->rol, ['administrador', 'secretario'], true)) {
-            return true;
-        }
-
-        // El asesor solamente puede acceder a sus expedientes asignados
-        if ($usuario->rol === 'asesor') {
-            return (int) $expediente->asesor_id === (int) $usuario->id;
-        }
-
-        // El practicante solamente puede acceder a sus expedientes asignados
-        if ($usuario->rol === 'practicante') {
-            return (int) $expediente->practicante_id === (int) $usuario->id;
-        }
-
-        return false;
+        // La regla de visibilidad vive en el modelo (Expediente::esVisiblePara).
+        return $expediente->esVisiblePara($this->usuarioAutenticado());
     }
 
     private function autorizarExpediente(Expediente $expediente): void
@@ -83,21 +72,40 @@ class ExpedienteController extends Controller
         );
     }
 
+    private function notificarCambioPracticante(Expediente $expediente, int $nuevoId, ?int $anteriorId): void
+    {
+        $this->notificaciones->practicanteCambiado(
+            $expediente,
+            Usuario::findOrFail($nuevoId),
+            $anteriorId ? Usuario::withTrashed()->find($anteriorId) : null,
+            $this->usuarioAutenticado()
+        );
+    }
+
     public function index()
     {
         $usuario = $this->usuarioAutenticado();
 
-        $query = Expediente::with([
-            'asesor',
-            'creador',
-            'modificador'
-        ])->orderByDesc('created_at');
+        // La huella se calcula ANTES de leer la lista: si algo cambia entre
+        // ambas lecturas, el refresco automático lo detecta en el siguiente ciclo.
+        $huella = $this->huellaListado($usuario);
 
-        if ($usuario && $usuario->rol === 'practicante') {
-            $query->where('practicante_id', $usuario->id);
-        }
-
-        $expedientes = $query->get();
+        // JD033 / JD038: el filtro por rol se aplica SIEMPRE en el servidor.
+        $expedientes = Expediente::query()
+            ->visiblesPara($usuario)
+            ->select([
+                'id', 'numero_expediente', 'cliente', 'tipo_proceso', 'estado',
+                'asesor_id', 'practicante_id', 'fecha_ingreso',
+                'creado_por', 'modificado_por', 'created_at', 'updated_at',
+            ])
+            ->with([
+                'asesor:id,nombre,apellido',
+                'practicante:id,nombre,apellido',
+                'creador:id,nombre,apellido',
+                'modificador:id,nombre,apellido',
+            ])
+            ->orderByDesc('created_at')
+            ->get();
 
         $configService = app(ConfiguracionService::class);
         $tiposProceso = $configService->get('expedientes_tipos_proceso', ['Civil', 'Penal', 'Laboral', 'Familia', 'Administrativo']);
@@ -105,22 +113,47 @@ class ExpedienteController extends Controller
 
         // Marcar expedientes con alerta de inactividad
         $expedientes->each(function ($exp) use ($diasAlerta) {
-            $exp->alerta_inactividad = !in_array($exp->estado, ['Cerrado', 'Archivado'], true)
+            $exp->alerta_inactividad = !in_array($exp->estado, Expediente::ESTADOS_FINALES, true)
                 && $exp->updated_at
                 && $exp->updated_at->diffInDays(now()) >= $diasAlerta;
         });
 
-        $asesores = Usuario::where('rol', 'asesor')
-            ->orderBy('nombre')
-            ->orderBy('apellido')
-            ->get();
+        // Solo quien filtra por asesor necesita esta lista; y solo id/nombre/apellido.
+        $asesores = in_array($usuario->rol, ['administrador', 'secretario'], true)
+            ? Usuario::where('rol', 'asesor')
+                ->orderBy('nombre')
+                ->orderBy('apellido')
+                ->get(['id', 'nombre', 'apellido'])
+            : collect();
 
         return Inertia::render('Expedientes/Index', [
             'expedientes' => $expedientes,
             'asesores' => $asesores,
             'tiposProceso' => $tiposProceso,
             'diasAlertaInactividad' => $diasAlerta,
+            'versionListado' => $huella,
         ]);
+    }
+
+    /**
+     * Endpoint liviano para el refresco automático del listado.
+     * Devuelve solo una huella; el listado completo se recarga únicamente si cambió.
+     */
+    public function version(): JsonResponse
+    {
+        return response()
+            ->json(['version' => $this->huellaListado($this->usuarioAutenticado())])
+            ->header('Cache-Control', 'no-store');
+    }
+
+    private function huellaListado(?Usuario $usuario): string
+    {
+        $resumen = Expediente::query()
+            ->visiblesPara($usuario)
+            ->selectRaw('COUNT(*) AS total, MAX(updated_at) AS ultimo')
+            ->first();
+
+        return md5(($resumen->total ?? 0) . '|' . ($resumen->ultimo ?? ''));
     }
 
     public function create()
@@ -212,6 +245,10 @@ class ExpedienteController extends Controller
                     'numero_expediente' => $expediente->numero_expediente,
                 ]
             );
+
+            if (!empty($data['practicante_id'])) {
+                $this->notificarCambioPracticante($expediente, (int) $data['practicante_id'], null);
+            }
         });
 
         return redirect()
@@ -386,11 +423,15 @@ class ExpedienteController extends Controller
 
         $data['modificado_por'] = Auth::id();
 
+        // Guardamos el practicante previo para saber si hubo asignación/reasignación.
+        $practicanteAnteriorId = $expediente->practicante_id;
+
         DB::transaction(function () use (
             $expediente,
             $data,
             $camposModificados,
-            $detallesCambios
+            $detallesCambios,
+            $practicanteAnteriorId
         ) {
             $expediente->update($data);
 
@@ -401,8 +442,19 @@ class ExpedienteController extends Controller
                 [
                     'campos' => $camposModificados,
                     'modificaciones' => $detallesCambios,
-                ]
+                 ]
             );
+
+            if (
+                !empty($data['practicante_id'])
+                && (int) $data['practicante_id'] !== (int) $practicanteAnteriorId
+            ) {
+                $this->notificarCambioPracticante(
+                    $expediente,
+                    (int) $data['practicante_id'],
+                    $practicanteAnteriorId ? (int) $practicanteAnteriorId : null
+                );
+            }
         });
 
         // Registrar en la Bitácora de Auditoría Inmutable con todos los detalles
@@ -477,6 +529,8 @@ class ExpedienteController extends Controller
 
         $usuarioAutenticado = Auth::user();
         $usuarioNombre = $usuarioAutenticado ? "{$usuarioAutenticado->nombre} {$usuarioAutenticado->apellido}" : 'El usuario';
+
+        $this->notificaciones->estadoModificado($expediente, $estadoAnterior, $usuarioAutenticado);
 
         $this->auditoriaService->registrar(
             modulo: 'Expedientes',
@@ -578,13 +632,20 @@ class ExpedienteController extends Controller
     {
         $this->autorizarExpediente($expediente);
 
+        // Solo los campos que la vista necesita (no se expone correo, intentos, etc.).
         $expediente->load([
-            'asesor',
-            'practicante',
-            'creador',
-            'modificador',
-            'documentos.usuario',
+            'asesor:id,nombre,apellido',
+            'practicante:id,nombre,apellido',
+            'creador:id,nombre,apellido',
+            'modificador:id,nombre,apellido',
+            'documentos.usuario:id,nombre,apellido,rol',
         ]);
+
+        // JD035 / JD036: solo el asesor responsable gestiona la asignación.
+        $usuario = $this->usuarioAutenticado();
+        $puedeGestionarAsignacion = $usuario?->rol === 'asesor'
+            && (int) $expediente->asesor_id === (int) $usuario->id
+            && !in_array($expediente->estado, Expediente::ESTADOS_FINALES, true);
 
         $configDocs = [
             'maxTamanoMb' => (int) app(ConfiguracionService::class)->get('documentos_max_tamano_mb', 10),
@@ -594,6 +655,12 @@ class ExpedienteController extends Controller
         return Inertia::render('Expedientes/Show', [
             'expediente' => $expediente,
             'configuracionDocumentos' => $configDocs,
+            'asignacion' => [
+                'puedeGestionar' => $puedeGestionarAsignacion,
+                'practicantesDisponibles' => $puedeGestionarAsignacion
+                    ? $this->asignaciones->practicantesDisponibles($expediente->practicante_id)
+                    : [],
+            ],
         ]);
     }
 
@@ -778,6 +845,8 @@ class ExpedienteController extends Controller
                 ]
             );
         });
+
+        $this->notificaciones->documentoCargado($expediente, $nombreOriginal, $usuario);
 
         return back()->with(
             'exito',

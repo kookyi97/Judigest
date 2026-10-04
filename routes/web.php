@@ -6,6 +6,9 @@ use App\Http\Controllers\UsuarioController;
 use App\Http\Controllers\ExpedienteController;
 use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\AuditoriaController;
+use App\Http\Controllers\AsignacionPracticanteController;
+use App\Http\Controllers\NotificacionController;
+use App\Services\NotificacionService;
 use App\Services\AuditoriaService;
 use App\Models\Usuario;
 use App\Models\Expediente;
@@ -149,25 +152,42 @@ Route::middleware('auth')->group(function () {
                 ->where('fecha', '>=', now()->toDateString())
                 ->count();
 
+            // Practicantes que hoy trabajan casos activos de este asesor, con su carga
+            $practicantes = Expediente::where('asesor_id', $user->id)
+                ->activos()
+                ->whereNotNull('practicante_id')
+                ->with('practicante:id,nombre,apellido')
+                ->get()
+                ->groupBy('practicante_id')
+                ->map(fn ($casos) => [
+                    'id'          => $casos->first()->practicante_id,
+                    'nombre'      => trim($casos->first()->practicante->nombre . ' ' . $casos->first()->practicante->apellido),
+                    'iniciales'   => mb_strtoupper(mb_substr($casos->first()->practicante->nombre, 0, 1) . mb_substr($casos->first()->practicante->apellido, 0, 1)),
+                    'casosActivos'=> $casos->count(),
+                ])
+                ->values();
+
             return Inertia::render('AsesorDashboard', [
                 'proximasAudiencias' => $proximasAudiencias,
                 'estadisticas'       => [
                     'casosActivos'          => $casosActivos,
-                    'practicantesAsignados' => 0,
+                    'practicantesAsignados' => $practicantes->count(),
                     'casosSinActividad'     => 0,
                     'documentosPendientes'  => 0,
                     'proximasAudiencias'    => $audienciasProximas,
                 ],
-                'practicantes' => [],
+                'practicantes' => $practicantes,
             ]);
         }
 
         if ($user->rol === 'practicante') {
-            $casos = Expediente::where('practicante_id', $user->id)
-                ->with(['asesor'])
+            $notificaciones = app(NotificacionService::class);
+
+            $casos = Expediente::visiblesPara($user)
+                ->with(['asesor:id,nombre,apellido'])
                 ->orderBy('updated_at','desc')
                 ->get();
-
+                
             $casosAsignados = $casos->map(fn($exp) => [
                 'id'             => $exp->id,
                 'numero'         => $exp->numero_expediente,
@@ -196,9 +216,9 @@ Route::middleware('auth')->group(function () {
                     'casosAsignados'         => $casos->count(),
                     'proximasAudiencias'     => $audienciasProximas,
                     'casosConActividad'      => $casos->where('updated_at', '>=', now()->subDays(7))->count(),
-                    'notificacionesNoLeidas' => 0,
+                    'notificacionesNoLeidas' => $notificaciones->noLeidas($user),
                 ],
-                'notificaciones' => [],
+                'notificaciones' => $notificaciones->recientes($user, 5),
             ]);
         }
 
@@ -264,6 +284,14 @@ Route::middleware('auth')->group(function () {
         ->name('expedientes.index')
         ->middleware('rol:administrador,secretario,asesor,practicante');
 
+    // Refresco automático del listado (devuelve solo una huella, no datos)
+    Route::get(
+        '/expedientes/version',
+        [ExpedienteController::class, 'version']
+    )
+        ->name('expedientes.version')
+        ->middleware('rol:administrador,secretario,asesor,practicante');
+
     Route::get(
         '/expedientes/create',
         [ExpedienteController::class, 'create']
@@ -310,8 +338,24 @@ Route::middleware('auth')->group(function () {
         '/expedientes/{expediente}/archivar',
         [ExpedienteController::class, 'archivar']
     )
-        ->name('expedientes.archivar')
+         ->name('expedientes.archivar')
         ->middleware('rol:secretario');
+
+    // JD035 — Asignar practicante (solo el Asesor responsable)
+    Route::post(
+        '/expedientes/{expediente}/practicante',
+        [AsignacionPracticanteController::class, 'store']
+    )
+        ->name('expedientes.practicante.asignar')
+        ->middleware('rol:asesor');
+
+    // JD036 — Reasignar caso a otro practicante (solo el Asesor responsable)
+    Route::put(
+        '/expedientes/{expediente}/practicante',
+        [AsignacionPracticanteController::class, 'update']
+    )
+        ->name('expedientes.practicante.reasignar')
+        ->middleware('rol:asesor');
 
     Route::get(
         '/expedientes/{expediente}/documentos',
@@ -334,12 +378,13 @@ Route::middleware('auth')->group(function () {
         ->name('expedientes.historial')
         ->middleware('rol:administrador,secretario,asesor');
 
-    Route::get(
-        '/documentos/{documento}/ver',
-        [ExpedienteController::class, 'verDocumento']
+   Route::get(
+    '/documentos/{documento}/ver/{nombre?}',
+    [ExpedienteController::class, 'verDocumento']
     )
-        ->name('documentos.ver')
-        ->middleware('rol:secretario,asesor,practicante');
+    ->whereNumber('documento')
+    ->name('documentos.ver')
+    ->middleware('rol:secretario,asesor,practicante');
 
     Route::get(
         '/documentos/{documento}/descargar',
@@ -388,6 +433,20 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/calendario', [App\Http\Controllers\AudienciaController::class, 'calendario'])
         ->name('calendario.index')
-        ->middleware('rol:administrador,secretario,asesor,practicante');
+         ->middleware('rol:administrador,secretario,asesor,practicante');
+
+    // JD040 / JD041 — Notificaciones propias del asesor y del practicante
+    Route::get('/notificaciones', [NotificacionController::class, 'index'])
+        ->name('notificaciones.index')
+        ->middleware('rol:asesor,practicante');
+
+    Route::patch('/notificaciones/leidas', [NotificacionController::class, 'marcarTodasLeidas'])
+        ->name('notificaciones.leidas')
+        ->middleware('rol:asesor,practicante');
+
+    Route::patch('/notificaciones/{notificacion}/leida', [NotificacionController::class, 'marcarLeida'])
+        ->whereNumber('notificacion')
+        ->name('notificaciones.leida')
+        ->middleware('rol:asesor,practicante');
 
 });

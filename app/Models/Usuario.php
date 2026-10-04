@@ -45,4 +45,9 @@ class Usuario extends Authenticatable
     {
         return $this->belongsTo(Usuario::class, 'modificado_por');
     }
+
+    public function expedientesComoPracticante()
+    {
+        return $this->hasMany(Expediente::class, 'practicante_id');
+    }
 }

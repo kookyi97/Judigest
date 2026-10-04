@@ -54,7 +54,7 @@ const cargaClass = (n) => n>=5?'carga--alta':n>=3?'carga--media':'carga--baja';
         <div class="panel">
           <div class="panel__head">
             <h2 class="panel__titulo">Mis casos asignados</h2>
-            <a href="/casos" class="panel__link">Ver todos</a>
+            <a href="/expedientes" class="panel__link">Ver todos</a>
           </div>
 
           <template v-if="proximasAudiencias && proximasAudiencias.length">
@@ -77,9 +77,9 @@ const cargaClass = (n) => n>=5?'carga--alta':n>=3?'carga--media':'carga--baja';
           </template>
 
           <div class="acciones">
-            <a href="/casos" class="btn-sec">Ver detalle del expediente</a>
-            <a href="/casos" class="btn-sec">Ver historial de cambios</a>
-            <a href="/casos" class="btn-sec">Filtrar por estado o practicante</a>
+            <a href="/expedientes" class="btn-sec">Ver detalle del expediente</a>
+            <a href="/expedientes" class="btn-sec">Ver historial de cambios</a>
+            <a href="/expedientes" class="btn-sec">Filtrar por estado o practicante</a>
           </div>
         </div>
 
@@ -90,7 +90,7 @@ const cargaClass = (n) => n>=5?'carga--alta':n>=3?'carga--media':'carga--baja';
           <div class="panel">
             <div class="panel__head">
               <h2 class="panel__titulo">Mis practicantes</h2>
-              <a href="/asignacion" class="panel__link">Gestionar</a>
+              <a href="/expedientes" class="panel__link">Gestionar</a>
             </div>
 
             <template v-if="practicantes && practicantes.length">
@@ -111,7 +111,7 @@ const cargaClass = (n) => n>=5?'carga--alta':n>=3?'carga--media':'carga--baja';
               <p class="vacio-txt"><Users class="vacio-ico"/>Sin practicantes asignados.</p>
             </template>
 
-            <a href="/asignacion" class="btn-bloque">Asignar practicante a caso</a>
+            <a href="/expedientes" class="btn-bloque">Asignar practicante a caso</a>
           </div>
 
           <!-- Proximas audiencias -->

@@ -44,9 +44,14 @@ class HandleInertiaRequests extends Middleware
                 'rol'     => $request->user()->rol,  // JD046: menú por roles
             ] : null,
         ],
+        // JD040 / JD041: contador de notificaciones sin leer (solo asesor y practicante)
+        'notificaciones' => [
+            'no_leidas' => fn () => in_array($request->user()?->rol, ['asesor', 'practicante'], true)
+                ? app(\App\Services\NotificacionService::class)->noLeidas($request->user())
+                : 0,
+        ],
         'flash' => [
             'exito' => $request->session()->get('exito'),
-            'error' => $request->session()->get('error'),
             'nueva_contrasena' => $request->session()->get('nueva_contrasena'),
         ],
         'institucional' => [

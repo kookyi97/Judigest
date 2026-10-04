@@ -16,8 +16,13 @@ import {
 } from 'lucide-vue-next';
 
 const { props } = usePage();
+const page = usePage();
 const usuario = computed(() => props.auth?.usuario);
 const nombreEntidad = computed(() => props.institucional?.nombre || 'Judigest');
+
+// JD040 / JD041: solo asesor y practicante reciben notificaciones
+const veNotificaciones = computed(() => ['asesor', 'practicante'].includes(usuario.value?.rol));
+const notificacionesNoLeidas = computed(() => page.props.notificaciones?.no_leidas ?? 0);
 
 const dropdownAbierto = ref(false);
 const toggleDropdown = () => {
@@ -77,7 +82,7 @@ const menuItems = computed(() => {
         </nav>
       </div>
 
-      <div class="menu-section accountability">
+      <div v-if="veNotificaciones" class="menu-section accountability">
         <span class="section-title">ALERTAS</span>
         <nav class="sidebar-nav">
           <Link 
@@ -87,7 +92,7 @@ const menuItems = computed(() => {
           >
             <div class="icon-wrapper">
               <Bell class="nav-icon" />
-              <span class="badge-dot"></span>
+              <span v-if="notificacionesNoLeidas > 0" class="badge-dot"></span>
             </div>
             <span class="nav-label">Notificaciones</span>
           </Link>

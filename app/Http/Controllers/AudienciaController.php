@@ -7,6 +7,7 @@ use App\Models\Expediente;
 use App\Models\Notificacion;
 use App\Services\AuditoriaService;
 use App\Services\HistorialExpedienteService;
+use App\Services\NotificacionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -16,12 +17,16 @@ class AudienciaController extends Controller
     protected AuditoriaService $auditoriaService;
     protected HistorialExpedienteService $historialService;
 
+    protected NotificacionService $notificaciones;
+
     public function __construct(
         AuditoriaService $auditoriaService,
-        HistorialExpedienteService $historialService
+        HistorialExpedienteService $historialService,
+        NotificacionService $notificaciones
     ) {
         $this->auditoriaService = $auditoriaService;
         $this->historialService = $historialService;
+        $this->notificaciones = $notificaciones;
     }
 
     // ─────────────────────────────────────────────────────────────────────
@@ -50,10 +55,14 @@ class AudienciaController extends Controller
 
         $audiencias = $query->get()->map(fn($a) => $this->formatearAudiencia($a));
 
-        $expedientes = Expediente::whereNotIn('estado', ['Archivado', 'Cerrado'])
-            ->with('practicante')
-            ->orderBy('numero_expediente')
-            ->get(['id', 'numero_expediente', 'cliente', 'practicante_id']);
+        // Solo secretario/administrador reciben el catálogo completo de expedientes.
+        // Asesor y practicante no deben recibir expedientes ajenos.
+        $expedientes = in_array($usuario->rol, ['administrador', 'secretario'], true)
+            ? Expediente::activos()
+                ->with('practicante:id,nombre,apellido')
+                ->orderBy('numero_expediente')
+                ->get(['id', 'numero_expediente', 'cliente', 'practicante_id'])
+            : collect();
 
         return Inertia::render('Audiencias/Index', [
             'audiencias'  => $audiencias,
@@ -197,18 +206,16 @@ class AudienciaController extends Controller
 
         $audiencia->update($data);
 
-        if ($expediente->practicante_id) {
-            Notificacion::notificarAudiencia(
-                usuarioId:    $expediente->practicante_id,
-                expedienteId: $expediente->id,
-                audienciaId:  $audiencia->id,
-                tipo:         'audiencia_modificada',
-                titulo:       'Audiencia actualizada',
-                mensaje:      "La audiencia del expediente {$expediente->numero_expediente} fue modificada. "
-                            . "Nueva fecha: {$audiencia->fecha->format('d/m/Y')} a las " . substr($audiencia->hora, 0, 5)
-                            . " en {$audiencia->sala_juzgado}.",
-            );
-        }
+        $this->notificaciones->audiencia(
+            expediente: $expediente,
+            audiencia:  $audiencia,
+            tipo:       'audiencia_modificada',
+            titulo:     'Audiencia actualizada',
+            mensaje:    "La audiencia del expediente {$expediente->numero_expediente} fue modificada. "
+                      . "Nueva fecha: {$audiencia->fecha->format('d/m/Y')} a las " . substr($audiencia->hora, 0, 5)
+                      . " en {$audiencia->sala_juzgado}.",
+            actor:      Auth::user(),
+        );
 
         $this->historialService->registrar(
             expedienteId: $expediente->id,
@@ -243,18 +250,16 @@ class AudienciaController extends Controller
 
         $audiencia->update(['estado' => 'cancelada']);
 
-        if ($audiencia->expediente->practicante_id) {
-            Notificacion::notificarAudiencia(
-                usuarioId:    $audiencia->expediente->practicante_id,
-                expedienteId: $audiencia->expediente_id,
-                audienciaId:  $audiencia->id,
-                tipo:         'audiencia_modificada',
-                titulo:       'Audiencia cancelada',
-                mensaje:      "La audiencia del {$audiencia->fecha->format('d/m/Y')} a las "
-                            . substr($audiencia->hora, 0, 5)
-                            . " del expediente {$audiencia->expediente->numero_expediente} fue cancelada.",
-            );
-        }
+        $this->notificaciones->audiencia(
+            expediente: $audiencia->expediente,
+            audiencia:  $audiencia,
+            tipo:       'audiencia_modificada',
+            titulo:     'Audiencia cancelada',
+            mensaje:    "La audiencia del {$audiencia->fecha->format('d/m/Y')} a las "
+                      . substr($audiencia->hora, 0, 5)
+                      . " del expediente {$audiencia->expediente->numero_expediente} fue cancelada.",
+            actor:      Auth::user(),
+        );
 
         $this->historialService->registrar(
             expedienteId: $audiencia->expediente_id,

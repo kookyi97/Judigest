@@ -1,5 +1,6 @@
 <script setup>
 import AppLayout from '@/Layouts/AppLayout.vue';
+import AsignarPracticante from '@/Components/Expedientes/AsignarPracticante.vue';
 
 import { Head, Link, usePage, router } from '@inertiajs/vue3';
 
@@ -21,7 +22,7 @@ import {
     X
 } from 'lucide-vue-next';
 
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps({
     expediente: {
@@ -34,6 +35,11 @@ const props = defineProps({
             maxTamanoMb: 10,
             formatosPermitidos: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']
         })
+    },
+    // JD035 / JD036: lo calcula el servidor; el frontend solo lo muestra
+    asignacion: {
+        type: Object,
+        default: () => ({ puedeGestionar: false, practicantesDisponibles: [] })
     }
 });
 
@@ -108,6 +114,12 @@ const errorArchivo = ref('');
 const errorServidor = ref('');
 const alertaExitoVisible = ref(true);
 
+// Cada mensaje nuevo (asignar, reasignar, subir documento...) vuelve a mostrar la alerta,
+// aunque el usuario haya cerrado una anterior.
+watch(() => page.props.flash?.exito, () => {
+    alertaExitoVisible.value = true;
+});
+
 const formatosPermitidos = computed(() => props.configuracionDocumentos?.formatosPermitidos || ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'png', 'jpg', 'jpeg']);
 const maxTamanoMb = computed(() => props.configuracionDocumentos?.maxTamanoMb || 10);
 const maxTamanoBytes = computed(() => maxTamanoMb.value * 1024 * 1024);
@@ -160,13 +172,13 @@ const subirDocumento = () => {
     }
 
     const extension = archivo.value.name.includes('.') ? archivo.value.name.split('.').pop().toLowerCase() : '';
-    if (!formatosPermitidos.includes(extension)) {
+    if (!formatosPermitidos.value.includes(extension)) {
         errorArchivo.value = `Formato no permitido (.${extension}). Solo se permiten archivos PDF, Word, Excel o imágenes.`;
         return;
     }
 
-    if (archivo.value.size > maxTamanoBytes) {
-        errorArchivo.value = 'El archivo no puede superar los 10 MB.';
+    if (archivo.value.size > maxTamanoBytes.value) {
+        errorArchivo.value = `El archivo no puede superar los ${maxTamanoMb.value} MB.`;
         return;
     }
 
@@ -297,11 +309,10 @@ const formatearTamano = (tamano) => {
     return `${(tamano / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-/*
-|--------------------------------------------------------------------------
-| DESCARGAR
-|--------------------------------------------------------------------------
-*/
+
+const urlVerDocumento = (documento) =>
+    `/documentos/${documento.id}/ver/${encodeURIComponent(documento.nombre_original)}`;
+
 
 const descargarDocumento = (documento) => {
     window.location.href =
@@ -369,12 +380,30 @@ const eliminarDocumento = (documento) => {
 
                 </div>
 
-                <span
-                    class="estado-badge"
-                    :class="estadoClass(expediente.estado)"
-                >
-                    {{ expediente.estado }}
-                </span>
+                <div class="header-estado">
+
+                    <span
+                        class="estado-badge"
+                        :class="estadoClass(expediente.estado)"
+                    >
+                        {{ expediente.estado }}
+                    </span>
+
+                    <div
+                        v-if="expediente.avance !== undefined"
+                        class="avance"
+                        :title="`Avance estimado: ${expediente.avance}%`"
+                    >
+                        <div class="avance__barra">
+                            <div
+                                class="avance__relleno"
+                                :style="{ width: expediente.avance + '%' }"
+                            ></div>
+                        </div>
+                        <span>Avance {{ expediente.avance }}%</span>
+                    </div>
+
+                </div>
 
             </div>
 
@@ -401,6 +430,9 @@ const eliminarDocumento = (documento) => {
 
 
             <div class="contenido">
+
+                <!-- COLUMNA PRINCIPAL -->
+                <div class="columna-principal">
 
                 <!-- INFORMACIÓN DEL CASO -->
 
@@ -540,101 +572,6 @@ const eliminarDocumento = (documento) => {
                         <p>
                             {{ expediente.descripcion }}
                         </p>
-
-                    </div>
-
-                </div>
-
-
-                <!-- AUDITORÍA -->
-
-                <div class="card">
-
-                    <div class="card-header">
-
-                        <div class="card-title">
-
-                            <Clock />
-
-                            <h2>
-                                Auditoría
-                            </h2>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="auditoria">
-
-                        <div class="auditoria-item">
-
-                            <div class="auditoria-icon">
-                                <User />
-                            </div>
-
-                            <div>
-
-                                <span>
-                                    Creado por
-                                </span>
-
-                                <strong>
-                                    {{
-                                        expediente.creador
-                                            ? expediente.creador.nombre +
-                                              ' ' +
-                                              expediente.creador.apellido
-                                            : 'Sistema'
-                                    }}
-                                </strong>
-
-                                <small>
-                                    {{
-                                        formatDateTime(
-                                            expediente.created_at
-                                        )
-                                    }}
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="auditoria-item">
-
-                            <div class="auditoria-icon">
-                                <Clock />
-                            </div>
-
-                            <div>
-
-                                <span>
-                                    Última modificación
-                                </span>
-
-                                <strong>
-                                    {{
-                                        expediente.modificador
-                                            ? expediente.modificador.nombre +
-                                              ' ' +
-                                              expediente.modificador.apellido
-                                            : 'Sin modificaciones'
-                                    }}
-                                </strong>
-
-                                <small>
-                                    {{
-                                        formatDateTime(
-                                            expediente.updated_at
-                                        )
-                                    }}
-                                </small>
-
-                            </div>
-
-                        </div>
 
                     </div>
 
@@ -796,7 +733,7 @@ const eliminarDocumento = (documento) => {
                                 <!-- VER -->
                                 <a
                                     v-if="puedeDescargar"
-                                    :href="`/documentos/${documento.id}/ver`"
+                                    :href="urlVerDocumento(documento)"
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     class="btn-ver"
@@ -892,6 +829,119 @@ const eliminarDocumento = (documento) => {
                     </div>
 
                 </div>
+
+
+                </div>
+
+                <!-- COLUMNA LATERAL: responsables y trazabilidad -->
+                <aside class="columna-lateral">
+
+                <!-- ASIGNACIÓN DE PRACTICANTE (JD035 / JD036) -->
+
+                <AsignarPracticante
+                    v-if="asignacion.puedeGestionar"
+                    :expediente="expediente"
+                    :practicantes="asignacion.practicantesDisponibles"
+                />
+
+
+                <!-- AUDITORÍA -->
+
+                <div class="card">
+
+                    <div class="card-header">
+
+                        <div class="card-title">
+
+                            <Clock />
+
+                            <h2>
+                                Auditoría
+                            </h2>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="auditoria">
+
+                        <div class="auditoria-item">
+
+                            <div class="auditoria-icon">
+                                <User />
+                            </div>
+
+                            <div>
+
+                                <span>
+                                    Creado por
+                                </span>
+
+                                <strong>
+                                    {{
+                                        expediente.creador
+                                            ? expediente.creador.nombre +
+                                              ' ' +
+                                              expediente.creador.apellido
+                                            : 'Sistema'
+                                    }}
+                                </strong>
+
+                                <small>
+                                    {{
+                                        formatDateTime(
+                                            expediente.created_at
+                                        )
+                                    }}
+                                </small>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="auditoria-item">
+
+                            <div class="auditoria-icon">
+                                <Clock />
+                            </div>
+
+                            <div>
+
+                                <span>
+                                    Última modificación
+                                </span>
+
+                                <strong>
+                                    {{
+                                        expediente.modificador
+                                            ? expediente.modificador.nombre +
+                                              ' ' +
+                                              expediente.modificador.apellido
+                                            : 'Sin modificaciones'
+                                    }}
+                                </strong>
+
+                                <small>
+                                    {{
+                                        formatDateTime(
+                                            expediente.updated_at
+                                        )
+                                    }}
+                                </small>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                
+                </aside>
 
             </div>
 
@@ -1024,9 +1074,55 @@ const eliminarDocumento = (documento) => {
 }
 
 .contenido {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 18px;
+    align-items: start;
+}
+
+.columna-principal,
+.columna-lateral {
     display: flex;
     flex-direction: column;
     gap: 18px;
+    min-width: 0;
+}
+
+.header-estado {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.avance {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+}
+
+.avance__barra {
+    width: 110px;
+    height: 6px;
+    background: #E2E8F0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.avance__relleno {
+    height: 100%;
+    background: #185FA5;
+    border-radius: 999px;
+    transition: width .3s ease;
+}
+
+@media (max-width: 1100px) {
+    .contenido {
+        grid-template-columns: minmax(0, 1fr);
+    }
 }
 
 .card {
@@ -1068,7 +1164,7 @@ const eliminarDocumento = (documento) => {
 
 .info-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
     gap: 20px;
     padding: 20px;
 }
@@ -1106,8 +1202,8 @@ const eliminarDocumento = (documento) => {
 
 .auditoria {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    grid-template-columns: 1fr;
+    gap: 16px;
     padding: 20px;
 }
 
