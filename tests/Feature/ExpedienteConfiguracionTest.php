@@ -262,4 +262,35 @@ class ExpedienteConfiguracionTest extends TestCase
             'estado' => 'Archivado',
         ]);
     }
+
+    public function test_actualizar_parametros_registra_en_bitacora_central_de_auditoria(): void
+    {
+        $admin = Usuario::create([
+            'nombre_usuario' => 'admin_config',
+            'nombre' => 'Admin',
+            'apellido' => 'Config',
+            'correo' => 'adminconfig@test.com',
+            'contrasena' => 'password123',
+            'rol' => 'administrador',
+            'activo' => true,
+        ]);
+
+        app(ConfiguracionService::class)->actualizarParametros([
+            'expedientes_prefijo' => 'CASO',
+        ], $admin->id);
+
+        $this->assertDatabaseHas('historial_configuraciones', [
+            'parametro_clave' => 'expedientes_prefijo',
+            'valor_nuevo' => 'CASO',
+            'usuario_id' => $admin->id,
+        ]);
+
+        $this->assertDatabaseHas('auditorias', [
+            'modulo' => 'Configuración',
+            'accion' => 'Actualizar Parámetro',
+            'usuario_id' => $admin->id,
+            'resultado' => 'exitoso',
+        ]);
+    }
 }
+

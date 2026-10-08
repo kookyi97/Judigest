@@ -4,11 +4,19 @@ namespace App\Services;
 
 use App\Models\Configuracion;
 use App\Models\HistorialConfiguracion;
+use App\Models\Usuario;
+use App\Services\AuditoriaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 
 class ConfiguracionService
 {
+    protected AuditoriaService $auditoriaService;
+
+    public function __construct(?AuditoriaService $auditoriaService = null)
+    {
+        $this->auditoriaService = $auditoriaService ?? app(AuditoriaService::class);
+    }
     /**
      * Obtiene el valor tipado de un parámetro del sistema con almacenamiento en caché.
      */
@@ -115,7 +123,7 @@ class ConfiguracionService
                 $config->modificado_por = $usuarioId;
                 $config->save();
 
-                // Registramos en auditoría
+                // 1. Registramos en historial específico de configuración
                 HistorialConfiguracion::create([
                     'configuracion_id' => $config->id,
                     'parametro_clave' => $config->clave,
@@ -128,6 +136,26 @@ class ConfiguracionService
                     'user_agent' => substr((string) $request->userAgent(), 0, 500),
                     'fecha_hora' => now(),
                 ]);
+
+                // 2. Acoplamiento con la bitácora central de auditoría del sistema (Hallazgo 3)
+                $usuario = Usuario::find($usuarioId);
+                $this->auditoriaService->registrar(
+                    modulo: 'Configuración',
+                    accion: 'Actualizar Parámetro',
+                    descripcion: "Se actualizó el parámetro '{$config->nombre}' ({$config->clave}). De '{$valorAnteriorFormateado}' a '{$nuevoValorFormateado}'.",
+                    entidadTipo: 'Configuracion',
+                    entidadId: $config->id,
+                    detalles: [
+                        'parametro_clave' => $config->clave,
+                        'parametro_nombre' => $config->nombre,
+                        'categoria' => $config->categoria,
+                        'valor_anterior' => $valorAnteriorFormateado,
+                        'valor_nuevo' => $nuevoValorFormateado,
+                    ],
+                    resultado: 'exitoso',
+                    request: $request,
+                    usuario: $usuario
+                );
 
                 // Invalidamos la clave en la caché
                 Cache::forget("configuracion_{$clave}");
