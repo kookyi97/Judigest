@@ -26,4 +26,6 @@ Thumbs.db
 *.local
 analizar-sonar.bat
 /.postman
+*.docx
+
 
