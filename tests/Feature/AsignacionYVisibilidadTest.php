@@ -289,6 +289,11 @@ class AsignacionYVisibilidadTest extends TestCase
 
         $this->actingAs($this->usuario('secretario'))
             ->get(route('notificaciones.index'))
-            ->assertForbidden();
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('noLeidas', 0)
+                ->has('notificaciones.data', 0)
+            );
     }
+
 }

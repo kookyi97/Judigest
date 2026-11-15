@@ -13,13 +13,11 @@ class LoginController extends Controller
     private const MAX_INTENTOS = 5;
     private const MINUTOS_BLOQUEO = 15;
 
-    // JD001: mostrar formulario
     public function mostrar()
     {
         return Inertia::render('Auth/Login');
     }
 
-    // JD001 + JD044 + JD045: procesar login
     public function procesar(Request $request)
     {
         $request->validate([
@@ -51,16 +49,12 @@ class LoginController extends Controller
             }
 
             // Resetear intentos fallidos
-            $usuario->update([
-                'intentos_fallidos' => 0,
-                'bloqueado_hasta'   => null,
-            ]);
+            $usuario->registrarAccesoExitoso();
 
             $request->session()->regenerate();
             return redirect()->intended(route('dashboard'));
         }
 
-        // JD045: incrementar intentos fallidos
         if ($usuario) {
             $maxIntentos = (int) app(\App\Services\ConfiguracionService::class)->get('seguridad_max_intentos_login', 5);
             $intentos = $usuario->intentos_fallidos + 1;

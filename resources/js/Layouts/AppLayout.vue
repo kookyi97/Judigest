@@ -21,7 +21,7 @@ const usuario = computed(() => props.auth?.usuario);
 const nombreEntidad = computed(() => props.institucional?.nombre || 'Judigest');
 
 // JD040 / JD041: solo asesor y practicante reciben notificaciones
-const veNotificaciones = computed(() => ['asesor', 'practicante'].includes(usuario.value?.rol));
+const veNotificaciones = computed(() => !!usuario.value);
 const notificacionesNoLeidas = computed(() => page.props.notificaciones?.no_leidas ?? 0);
 
 const dropdownAbierto = ref(false);

@@ -13,9 +13,23 @@ class Usuario extends Authenticatable
     protected $table = 'usuarios';
 
     protected $fillable = [
-        'nombre_usuario', 'nombre','apellido','correo','contrasena',
+        'nombre_usuario', 'nombre','apellido','correo','telefono','contrasena',
         'rol','activo','intentos_fallidos',
         'bloqueado_hasta','foto_perfil', 'modificado_por'
+    ];
+
+    /**
+     * JD049: lo ÚNICO que el usuario puede editar de su propio perfil.
+     * $fillable incluye rol/activo porque el Administrador sí los gestiona (JD004/JD008),
+     * por eso el perfil NO usa $fillable como defensa: usa esta lista blanca.
+     */
+    public const CAMPOS_EDITABLES_PERFIL = ['nombre', 'apellido', 'telefono'];
+
+    /** JD049: campos que, si llegan en la petición del perfil, se consideran un intento de manipulación. */
+    public const CAMPOS_PROTEGIDOS_PERFIL = [
+        'id', 'rol', 'activo', 'estado', 'correo', 'nombre_usuario', 'contrasena', 'password',
+        'intentos_fallidos', 'bloqueado_hasta', 'ultimo_acceso', 'modificado_por',
+        'foto_perfil', 'remember_token', 'deleted_at', 'created_at', 'updated_at',
     ];
 
     protected $hidden = ['contrasena', 'remember_token'];
@@ -23,6 +37,7 @@ class Usuario extends Authenticatable
     protected $casts = [
         'contrasena'      => 'hashed',
         'bloqueado_hasta' => 'datetime',
+        'ultimo_acceso'   => 'datetime',
         'activo'          => 'boolean',
     ];
 
@@ -39,6 +54,29 @@ class Usuario extends Authenticatable
             return true;
         }
         return false;
+    }
+
+    /** JD001/JD045/JD049: login correcto → limpia bloqueos y marca el último acceso (solo el servidor lo escribe). */
+    public function registrarAccesoExitoso(): void
+    {
+        $this->forceFill([
+            'intentos_fallidos' => 0,
+            'bloqueado_hasta'   => null,
+            'ultimo_acceso'     => now(),
+        ])->save();
+    }
+
+    /** JD049: asesores de los expedientes activos de un practicante (sin repetir). */
+    public function asesoresAsignados()
+    {
+        return self::query()
+            ->whereIn('id', Expediente::query()
+                ->where('practicante_id', $this->id)
+                ->whereNotIn('estado', Expediente::ESTADOS_FINALES)
+                ->whereNotNull('asesor_id')
+                ->select('asesor_id'))
+            ->orderBy('nombre')
+            ->get(['id', 'nombre', 'apellido']);
     }
 
     public function modificador()

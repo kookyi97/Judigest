@@ -2,7 +2,7 @@
 import AppLayout from '@/Layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
-import { Bell, FolderOpen, Calendar, RefreshCw, CheckCircle2, CheckCheck } from 'lucide-vue-next';
+import { Bell, FolderOpen, Calendar, RefreshCw, ShieldCheck, CheckCircle2, CheckCheck } from 'lucide-vue-next';
 
 const props = defineProps({
     notificaciones: { type: Object, required: true }, // paginador de Laravel
@@ -12,11 +12,12 @@ const props = defineProps({
 const page = usePage();
 const flashExito = computed(() => page.props.flash?.exito);
 
-const iconoPorCategoria = { caso: FolderOpen, audiencia: Calendar, estado: RefreshCw };
+const iconoPorCategoria = { caso: FolderOpen, audiencia: Calendar, estado: RefreshCw, seguridad: ShieldCheck };
 const colorPorCategoria = {
     caso: { bg: '#EFF6FF', color: '#185FA5' },
     audiencia: { bg: '#D1FAE5', color: '#065F46' },
     estado: { bg: '#FEF3C7', color: '#92400E' },
+    seguridad: { bg: '#FEE2E2', color: '#991B1B' },
 };
 
 const marcarLeida = (n) => {

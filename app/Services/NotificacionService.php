@@ -27,6 +27,7 @@ class NotificacionService
     public const TIPO_PRACTICANTE       = 'practicante_asignado';
     public const TIPO_ESTADO            = 'estado_modificado';
     public const TIPO_DOCUMENTO         = 'documento_cargado';
+        public const TIPO_SEGURIDAD         = 'contrasena_modificada';
 
     /* ------------------------------------------------------------------ */
     /*  Creación                                                          */
@@ -170,6 +171,17 @@ class NotificacionService
         );
     }
 
+    /** JD050: avisa al propio usuario que su contraseña fue modificada. */
+    public function contrasenaModificada(Usuario $usuario): void
+    {
+        $this->enviarSinInterrumpir(
+            $usuario->id,
+            self::TIPO_SEGURIDAD,
+            'Tu contraseña fue modificada',
+            'Tu contraseña se cambió correctamente y se cerraron tus otras sesiones activas. '
+            . 'Si no fuiste tú, contacta de inmediato al administrador del sistema.'
+        );
+    }
     /** Notifica al asesor del expediente, salvo que él mismo sea quien actuó. */
     private function avisarAsesor(
         Expediente $expediente,
@@ -243,6 +255,7 @@ class NotificacionService
         return match (true) {
             str_starts_with($tipo, 'audiencia') => 'audiencia',
             $tipo === self::TIPO_ESTADO         => 'estado',
+            $tipo === self::TIPO_SEGURIDAD      => 'seguridad',
             default                             => 'caso',
         };
     }

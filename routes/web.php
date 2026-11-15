@@ -9,6 +9,8 @@ use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\AsignacionPracticanteController;
 use App\Http\Controllers\NotificacionController;
 use App\Services\NotificacionService;
+use App\Http\Controllers\PerfilController;
+use App\Http\Controllers\PasswordPropiaController;
 use App\Services\AuditoriaService;
 use App\Models\Usuario;
 use App\Models\Expediente;
@@ -434,6 +436,21 @@ Route::middleware('auth')->group(function () {
     Route::get('/calendario', [App\Http\Controllers\AudienciaController::class, 'calendario'])
         ->name('calendario.index')
          ->middleware('rol:administrador,secretario,asesor,practicante');
+
+    Route::middleware(['rol:administrador,secretario,asesor,practicante', 'sin.cache'])
+        ->prefix('perfil')
+        ->name('perfil.')
+        ->group(function () {
+            Route::get('/', [PerfilController::class, 'show'])->name('show');
+            Route::put('/', [PerfilController::class, 'update'])
+                ->middleware('throttle:perfil-actualizar')->name('update');
+            Route::put('/password', [PasswordPropiaController::class, 'update'])
+                ->middleware('throttle:perfil-password')->name('password.update');
+
+            // /perfil/5, /perfil/9 …: intento de ver otro perfil → 403 + auditoría (siempre al final del grupo)
+            Route::any('/{identificador}', [PerfilController::class, 'otroPerfil'])
+                ->where('identificador', '[0-9]+')->name('ajeno');
+        });
 
     // JD040 / JD041 — Notificaciones propias del asesor y del practicante
     Route::get('/notificaciones', [NotificacionController::class, 'index'])
