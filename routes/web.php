@@ -456,16 +456,16 @@ Route::middleware('auth')->group(function () {
     // JD040 / JD041 — Notificaciones propias del asesor y del practicante
     Route::get('/notificaciones', [NotificacionController::class, 'index'])
         ->name('notificaciones.index')
-        ->middleware('rol:asesor,practicante');
+        ->middleware('rol:secretario,asesor,practicante');
 
     Route::patch('/notificaciones/leidas', [NotificacionController::class, 'marcarTodasLeidas'])
         ->name('notificaciones.leidas')
-        ->middleware('rol:asesor,practicante');
+        ->middleware('rol:secretario,asesor,practicante');
 
     Route::patch('/notificaciones/{notificacion}/leida', [NotificacionController::class, 'marcarLeida'])
         ->whereNumber('notificacion')
         ->name('notificaciones.leida')
-        ->middleware('rol:asesor,practicante');
+        ->middleware('rol:secretario,asesor,practicante');
 
     // JD051 — Manual de usuario de acceso controlado
     Route::get('/manual-usuario', [ManualUsuarioController::class, 'ver'])
