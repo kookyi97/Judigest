@@ -8,6 +8,7 @@ use App\Http\Controllers\ConfiguracionController;
 use App\Http\Controllers\AuditoriaController;
 use App\Http\Controllers\AsignacionPracticanteController;
 use App\Http\Controllers\NotificacionController;
+use App\Http\Controllers\ManualUsuarioController;
 use App\Services\NotificacionService;
 use App\Http\Controllers\PerfilController;
 use App\Http\Controllers\PasswordPropiaController;
@@ -465,5 +466,12 @@ Route::middleware('auth')->group(function () {
         ->whereNumber('notificacion')
         ->name('notificaciones.leida')
         ->middleware('rol:asesor,practicante');
+
+    // JD051 — Manual de usuario de acceso controlado
+    Route::get('/manual-usuario', [ManualUsuarioController::class, 'ver'])
+        ->name('manual.ver');
+
+    Route::get('/manual-usuario/descargar', [ManualUsuarioController::class, 'descargar'])
+        ->name('manual.descargar');
 
 });
