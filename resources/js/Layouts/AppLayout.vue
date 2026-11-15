@@ -12,7 +12,8 @@ import {
   ChevronDown,
   User,
   LogOut,
-  Settings
+  Settings,
+  BookOpen
 } from 'lucide-vue-next';
 
 const { props } = usePage();
@@ -79,6 +80,18 @@ const menuItems = computed(() => {
             <component :is="item.icon" class="nav-icon" />
             <span class="nav-label">{{ item.label }}</span>
           </Link>
+
+          <!-- JD051: Enlace controlado al manual de usuario -->
+          <a 
+            :href="'/manual-usuario?r=' + (usuario?.rol || '')" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="nav-item"
+            title="Abrir Manual de Usuario (PDF)"
+          >
+            <BookOpen class="nav-icon" />
+            <span class="nav-label">Manual de usuario</span>
+          </a>
         </nav>
       </div>
 
@@ -127,6 +140,11 @@ const menuItems = computed(() => {
                 <User class="dp-icon" />
                 <span>Mi Perfil</span>
               </Link>
+
+              <a :href="'/manual-usuario?r=' + (usuario?.rol || '')" target="_blank" rel="noopener noreferrer" class="dropdown-item">
+                <BookOpen class="dp-icon" />
+                <span>Manual de usuario</span>
+              </a>
               
               <hr class="dropdown-divider" />
               

@@ -32,6 +32,8 @@ class RegistrarAuditoriaMiddleware
             'expedientes.show',
             'expedientes.documentos.index',
             'expedientes.historial',
+            'manual.ver',
+            'manual.descargar',
         ];
 
         $ruta = $request->route() ? $request->route()->getName() : null;
@@ -135,6 +137,8 @@ class RegistrarAuditoriaMiddleware
             'audiencias.store' => ['Audiencias', 'Programar Audiencia', "El usuario {$usuarioNombre} programó una nueva audiencia."],
             'audiencias.update' => ['Audiencias', 'Actualizar Audiencia', "El usuario {$usuarioNombre} modificó una audiencia."],
             'audiencias.cancelar' => ['Audiencias', 'Cancelar Audiencia', "El usuario {$usuarioNombre} canceló una audiencia."],
+            'manual.ver' => ['Documentación', 'Consulta de Manual de Usuario', "El usuario {$usuarioNombre} consultó el manual de usuario institucional."],
+            'manual.descargar' => ['Documentación', 'Descarga de Manual de Usuario', "El usuario {$usuarioNombre} descargó el manual de usuario institucional."],
         ];
 
         if ($ruta && isset($mapaRutas[$ruta])) {
