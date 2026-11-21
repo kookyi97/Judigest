@@ -86,10 +86,6 @@ El sistema se ejecuta de forma local desde Visual Studio Code. Esta es una versi
 
 8. Abrir `http://127.0.0.1:8000` en el navegador.
 
-> Si el módulo **Configuración** aparece vacío, ejecutar `php artisan db:seed --class=ConfiguracionSeeder` y luego `php artisan cache:clear`.
-
-Las cuentas de demostración que trae la base de datos usan contraseñas de prueba: cámbialas desde **Mi perfil → Cambiar contraseña** antes de compartir el sistema.
-
 ## Estructura del proyecto
 
 ```text
