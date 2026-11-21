@@ -117,7 +117,7 @@ El detalle de cada control y cómo verificarlo está en el manual técnico (ver 
 
 ## Equipo
 
-Desarrollado por el **Equipo de desarrollo JUDIGEST**.
+Desarrollado por el **Equipo de JUDIGEST**.
 
 Mayerlin Yisel Aguilar Cruz                  
 Brayan Audiel Chavarría Romero                
@@ -130,5 +130,4 @@ Ariel Esaú Yanes Quintanilla
 
 Manual técnico de JUDIGEST (instalación, arquitectura, base de datos, seguridad, respaldos y errores comunes).
 
-## Enlace:
-Manual_Técnico
+Enlace: https://me-l.co/az8v0n6j
