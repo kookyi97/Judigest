@@ -1,6 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { usePage, Link } from '@inertiajs/vue3';
+import TourGuiado from '@/Components/TourGuiado.vue';
+import TourEnVivo from '@/Components/TourEnVivo.vue';
 // Iconos limpios y profesionales
 import { 
   LayoutDashboard, 
@@ -8,12 +10,14 @@ import {
   FolderOpen, 
   ShieldAlert, 
   Bell, 
-  Users,
-  ChevronDown,
-  User,
-  LogOut,
-  Settings,
-  BookOpen
+  Users, 
+  ChevronDown, 
+  User, 
+  LogOut, 
+  Settings, 
+  BookOpen,
+  HelpCircle,
+  Compass
 } from 'lucide-vue-next';
 
 const { props } = usePage();
@@ -24,6 +28,21 @@ const nombreEntidad = computed(() => props.institucional?.nombre || 'Judigest');
 // JD040 / JD041: solo asesor y practicante reciben notificaciones
 const veNotificaciones = computed(() => !!usuario.value);
 const notificacionesNoLeidas = computed(() => page.props.notificaciones?.no_leidas ?? 0);
+
+const tourVentanaAbierto = ref(false);
+const tourEnVivoAbierto = ref(false);
+
+const abrirTour = () => {
+  tourEnVivoAbierto.value = true;
+  tourVentanaAbierto.value = false;
+  dropdownAbierto.value = false;
+};
+
+const abrirTourVentana = () => {
+  tourVentanaAbierto.value = true;
+  tourEnVivoAbierto.value = false;
+  dropdownAbierto.value = false;
+};
 
 const dropdownAbierto = ref(false);
 const toggleDropdown = () => {
@@ -56,7 +75,7 @@ const menuItems = computed(() => {
 <template>
   <div class="app-layout">
     
-    <aside class="sidebar">
+    <aside class="sidebar" data-tour="sidebar-root">
       <div class="sidebar-brand">
         <div class="logo-box">
           <Scale class="logo-icon" />
@@ -76,6 +95,7 @@ const menuItems = computed(() => {
             :href="item.href" 
             class="nav-item"
             :class="{ 'active': $page.url.startsWith(item.href) }"
+            :data-tour="'sidebar-' + item.label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')"
           >
             <component :is="item.icon" class="nav-icon" />
             <span class="nav-label">{{ item.label }}</span>
@@ -87,6 +107,7 @@ const menuItems = computed(() => {
             target="_blank" 
             rel="noopener noreferrer"
             class="nav-item"
+            data-tour="sidebar-manual"
             title="Abrir Manual de Usuario (PDF)"
           >
             <BookOpen class="nav-icon" />
@@ -101,6 +122,7 @@ const menuItems = computed(() => {
           <Link 
             href="/notificaciones" 
             class="nav-item"
+            data-tour="sidebar-notificaciones"
             :class="{ 'active': $page.url.startsWith('/notificaciones') }"
           >
             <div class="icon-wrapper">
@@ -121,7 +143,18 @@ const menuItems = computed(() => {
         </div>
 
         <div class="navbar-right">
-          <div class="user-dropdown-wrapper">
+          <!-- Botón de Guía Interactiva del Sistema -->
+          <button 
+            @click="abrirTour" 
+            class="navbar-tour-btn" 
+            data-tour="navbar-tour-btn"
+            title="Iniciar Guía Interactiva en Vivo (Spotlight)"
+          >
+            <Compass class="tour-btn-icon" />
+            <span class="tour-btn-text">Tour en Vivo</span>
+          </button>
+
+          <div class="user-dropdown-wrapper" data-tour="navbar-user">
             <button @click.stop="toggleDropdown" class="navbar-user-btn">
               <div class="nav-avatar">
                 {{ usuario?.nombre?.charAt(0).toUpperCase() }}
@@ -140,6 +173,16 @@ const menuItems = computed(() => {
                 <User class="dp-icon" />
                 <span>Mi Perfil</span>
               </Link>
+
+              <button @click="abrirTour" class="dropdown-item">
+                <Compass class="dp-icon" />
+                <span>Tour en vivo</span>
+              </button>
+
+              <button @click="abrirTourVentana" class="dropdown-item">
+                <HelpCircle class="dp-icon" />
+                <span>Ventana flotante</span>
+              </button>
 
               <a :href="'/manual-usuario?r=' + (usuario?.rol || '')" target="_blank" rel="noopener noreferrer" class="dropdown-item">
                 <BookOpen class="dp-icon" />
@@ -162,6 +205,20 @@ const menuItems = computed(() => {
       </main>
 
     </div>
+
+    <!-- Componente de Tour Guiado en Vivo (Spotlight e Iluminación en tiempo real) -->
+    <TourEnVivo 
+      v-model="tourEnVivoAbierto" 
+      :usuario="usuario"
+      @cambiarAModoVentana="abrirTourVentana"
+    />
+
+    <!-- Componente de Tour en Ventana Modal (Mockups y Resumen explicativo) -->
+    <TourGuiado 
+      v-model="tourVentanaAbierto" 
+      :usuario="usuario" 
+      @cambiarAModoEnVivo="abrirTour"
+    />
   </div>
 </template>
 
@@ -471,5 +528,51 @@ const menuItems = computed(() => {
 /* Área de contenido del sistema */
 .main-content {
   padding: 32px;
+}
+
+/* Barra superior - Botón Guía Interactiva del Sistema */
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.navbar-tour-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  padding: 7px 14px;
+  border-radius: 9999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.navbar-tour-btn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(29, 78, 216, 0.15);
+}
+
+.tour-btn-icon {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.2;
+  color: #2563eb;
+}
+
+@media (max-width: 640px) {
+  .tour-btn-text {
+    display: none;
+  }
+  .navbar-tour-btn {
+    padding: 7px 10px;
+  }
 }
 </style>
